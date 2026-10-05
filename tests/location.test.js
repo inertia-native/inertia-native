@@ -8,10 +8,11 @@ describe('location visits', () => {
   let h
   let onError
   let headerKeptWithoutAdapter
+  const visitCalls = []
 
   beforeAll(async () => {
     h = await setup()
-    h.router.visit = () => {} // lifecycle is driven manually below
+    h.router.visit = (url, opts = {}) => visitCalls.push({ url: String(url), opts })
     const { http } = await import('@inertiajs/core')
     http.onError = (handler) => {
       onError = handler
@@ -38,9 +39,10 @@ describe('location visits', () => {
     return h.dispatchInertia('httpException', { response: { ...response } }, { cancelable: true })
   }
 
-  function nativeVisit(url) {
+  async function nativeVisit(url) {
     window.Turbo.navigator.startVisit(url, null, { action: 'advance' })
-    h.dispatchInertia('start', { visit: { method: 'get' } })
+    await h.tick()
+    visitCalls.at(-1).opts.onStart()
   }
 
   function messages() {
@@ -52,7 +54,7 @@ describe('location visits', () => {
   })
 
   it('invalidates a native visit redirected on the same origin', async () => {
-    nativeVisit('http://localhost:3000/b')
+    await nativeVisit('http://localhost:3000/b')
     h.turboMessages.length = 0
     const event = respond('http://localhost:3000/b')
     await h.tick()
@@ -63,7 +65,7 @@ describe('location visits', () => {
   })
 
   it('fails a native visit redirected cross-origin so native resolves it', async () => {
-    nativeVisit('http://localhost:3000/map')
+    await nativeVisit('http://localhost:3000/map')
     h.turboMessages.length = 0
     const event = respond('https://maps.example.com/place')
     await h.tick()
@@ -95,7 +97,7 @@ describe('location visits', () => {
   })
 
   it('leaves other 409s to the existing error handling', async () => {
-    nativeVisit('http://localhost:3000/b')
+    await nativeVisit('http://localhost:3000/b')
     h.turboMessages.length = 0
     const response = { status: 409, data: '', headers: {} }
     onError({ response })
