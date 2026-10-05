@@ -71,7 +71,9 @@ describe('location visits', () => {
     await h.tick()
 
     expect(event.defaultPrevented).toBe(true)
-    expect(messages()).toContain('visitRequestFailedWithNonHttpStatusCode')
+    const failed = h.turboMessages.find((m) => m.name === 'visitRequestFailedWithNonHttpStatusCode')
+    // iOS drops this message without a statusCode.
+    expect(failed?.data?.statusCode).toBe(0)
     expect(messages()).not.toContain('visitProposed')
   })
 
