@@ -29,6 +29,42 @@ describe('navigation', () => {
     expect(visitCalls.length).toBe(0)
   })
 
+  // Partial reloads, polls, <WhenVisible>, <InfiniteScroll>, deferred props and
+  // filters update the current page; they must not open a native screen.
+  it.each([
+    ['a partial reload', { only: ['users'] }],
+    ['an except reload', { except: ['users'] }],
+    ['a reset reload', { reset: ['users'] }],
+    ['an async visit', { async: true }],
+    ['a preserveState filter', { url: 'http://localhost:3000/?q=a', preserveState: true }],
+    ['a preserveUrl visit', { url: 'http://localhost:3000/?page=2', preserveUrl: true }],
+    ['a visit to the current URL', { url: 'http://localhost:3000/#top' }],
+  ])('lets %s run in the web view', (_name, options) => {
+    window.Turbo.navigator.stop() // no native visit in flight
+    h.turboMessages.length = 0
+    const before = h.dispatchInertia(
+      'before',
+      { visit: { url: 'http://localhost:3000/users', method: 'get', only: [], except: [], reset: [], ...options } },
+      { cancelable: true }
+    )
+
+    expect(before.defaultPrevented).toBe(false)
+    expect(h.turboMessages.map((m) => m.name)).not.toContain('visitProposed')
+  })
+
+  it('cancels a prefetch without proposing a visit', () => {
+    window.Turbo.navigator.stop()
+    h.turboMessages.length = 0
+    const before = h.dispatchInertia(
+      'before',
+      { visit: { url: 'http://localhost:3000/navigation', method: 'get', prefetch: true, async: true } },
+      { cancelable: true }
+    )
+
+    expect(before.defaultPrevented).toBe(true)
+    expect(h.turboMessages.map((m) => m.name)).not.toContain('visitProposed')
+  })
+
   it('performs the visit and drives the lifecycle when native requests it', async () => {
     window.Turbo.navigator.startVisit('http://localhost:3000/navigation', 'rest-1', { action: 'advance' })
     await h.tick()
