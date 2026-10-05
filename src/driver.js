@@ -229,9 +229,20 @@ export default class InertiaDriver {
     // whole >=2.0 peer range. A given core version fires only one name.
     const onHttpException = (event) => {
       if (!this.#activeVisit) return
-      const status = event.detail.response?.status ?? 0
-      log('inertia', 'httpException → visitRequestFailedWithStatusCode', { status })
+      const response = event.detail.response
+      const status = response?.status ?? 0
       event.preventDefault()
+
+      // A successful non-Inertia response is a page this bundle can't render
+      // (e.g. a classic Turbo page). Have native reload the web view, as
+      // turbo.js does when tracked assets change.
+      if (status >= 200 && status < 300 && !response?.headers?.['x-inertia']) {
+        log('inertia', 'non-Inertia response → pageInvalidated', { status })
+        this.adapter?.pageInvalidated()
+        return
+      }
+
+      log('inertia', 'httpException → visitRequestFailedWithStatusCode', { status })
       this.adapter?.visitRequestFailedWithStatusCode(this.#activeVisit, status)
     }
     router.on('httpException', onHttpException)
