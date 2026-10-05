@@ -85,6 +85,20 @@ function NativeMenu({ items }) {
 Each `send` returns a message id; native replies invoke the `callback`. The
 hook re-checks support when the native handshake completes after mount.
 
+A component that draws native UI on `connect` should send it again when the
+web view returns from a native screen (`native:restore`, dispatched on
+Android). Put `restored` in the deps of the effect that sends it:
+
+```jsx
+const { supported, send, restored } = useBridgeComponent('button')
+
+useEffect(() => {
+  if (!supported) return
+  const id = send('connect', { title }, onTap)
+  return () => window.HotwireNative?.web?.removeCallback(id)
+}, [supported, title, send, restored])
+```
+
 ## Requirements
 
 - `@inertiajs/core` >= 2.0 (works with the v3 line)

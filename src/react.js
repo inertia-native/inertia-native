@@ -6,6 +6,7 @@ export function useBridgeComponent(component) {
   const [supported, setSupported] = useState(
     () => !!window.HotwireNative?.web?.supportsComponent(component)
   )
+  const [restored, setRestored] = useState(0)
   const sentIds = useRef([])
 
   useEffect(() => {
@@ -21,6 +22,15 @@ export function useBridgeComponent(component) {
     })
     return () => observer.disconnect()
   }, [component])
+
+  // Android dispatches native:restore when the web view comes back from a
+  // native screen; native may have dropped what `connect` drew. Components put
+  // `restored` in their effect's deps to send `connect` again.
+  useEffect(() => {
+    const onRestore = () => setRestored((count) => count + 1)
+    document.addEventListener('native:restore', onRestore)
+    return () => document.removeEventListener('native:restore', onRestore)
+  }, [])
 
   const send = useCallback(
     (event, data = {}, callback) => {
@@ -47,5 +57,5 @@ export function useBridgeComponent(component) {
     }
   }, [component])
 
-  return { supported, send }
+  return { supported, send, restored }
 }

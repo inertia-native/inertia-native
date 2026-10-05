@@ -31,6 +31,8 @@ void supportsForm
 const menu = useBridgeComponent('menu')
 const supported: boolean = menu.supported
 void supported
+const restored: number = menu.restored
+void restored
 const id: string | null = menu.send('connect', { title: 'x' }, (m: BridgeMessage) => m.id)
 void id
 menu.send('event') // data/callback optional
