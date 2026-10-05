@@ -1,5 +1,7 @@
-import { router } from '@inertiajs/core'
+import * as inertia from '@inertiajs/core'
 import { log } from './log.js'
+
+const { router } = inertia
 
 // No popstate within this window after history.back() means there's no cached
 // entry to restore (cold boot onto this screen) → fall back to a fresh request.
@@ -13,6 +15,9 @@ export default class InertiaDriver {
   // behind us is not one of ours.
   #pushedEntries = 0
   #historyTracked = false
+  // Targets of location visits (409 + X-Inertia-Location) taken from Inertia,
+  // keyed by the response's headers object.
+  #locations = new WeakMap()
 
   constructor(session) {
     this.session = session
@@ -29,7 +34,50 @@ export default class InertiaDriver {
   start() {
     log('inertia', 'driver started')
     this.#trackHistoryDepth()
+    this.#interceptLocationVisits()
     this.#setupInertiaListeners()
+  }
+
+  // Inertia follows a location visit with window.location, out of native's
+  // sight and before any event fires. Stripping the header turns it into an
+  // httpException, which the listener below hands to native instead.
+  // `http` exists from @inertiajs/core 3; on v2 Inertia still navigates itself.
+  #interceptLocationVisits() {
+    inertia.http?.onError((error) => {
+      const response = error.response
+      const location = response?.headers?.['x-inertia-location']
+      if (!this.adapter || response.status !== 409 || !location) return
+
+      delete response.headers['x-inertia-location']
+      this.#locations.set(response.headers, new URL(location, window.location.href))
+    })
+  }
+
+  #handOffLocation(location) {
+    const visit = this.#activeVisit
+
+    if (visit) {
+      if (location.origin !== window.location.origin) {
+        // As turbo.js reports a cross-origin redirect: native refetches the
+        // visit, follows the redirect, pops this screen and routes the target.
+        log('inertia', 'location visit (cross-origin) → visitRequestFailedWithStatusCode(0)', { location: location.href })
+        this.adapter?.visitRequestFailedWithStatusCode(visit, 0)
+      } else {
+        // A cold reload of the visit gets the server's plain redirect, or the
+        // new asset version.
+        log('inertia', 'location visit → pageInvalidated', { location: location.href })
+        this.adapter?.pageInvalidated()
+      }
+      return
+    }
+
+    if (location.href.split('#')[0] === window.location.href.split('#')[0]) {
+      log('inertia', 'location visit (same page) → pageInvalidated', { location: location.href })
+      this.adapter?.pageInvalidated()
+    } else {
+      log('inertia', 'location visit → visitProposed', { location: location.href })
+      this.session.visitProposedToLocation(location, { action: 'advance' })
+    }
   }
 
   // Counts history writes rather than the visits we see, so navigations that
@@ -228,8 +276,15 @@ export default class InertiaDriver {
     // v3.4 renamed `invalid` → `httpException`; listen for both to support the
     // whole >=2.0 peer range. A given core version fires only one name.
     const onHttpException = (event) => {
-      if (!this.#activeVisit) return
       const response = event.detail.response
+      const location = response?.headers && this.#locations.get(response.headers)
+      if (location) {
+        event.preventDefault()
+        this.#handOffLocation(location)
+        return
+      }
+
+      if (!this.#activeVisit) return
       const status = response?.status ?? 0
       event.preventDefault()
 
