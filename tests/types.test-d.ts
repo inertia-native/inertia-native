@@ -10,6 +10,7 @@ import { useBridgeComponent } from '../src/react.js'
 initHotwireNative()
 initHotwireNative({})
 initHotwireNative({ debug: true })
+initHotwireNative({ proposeFormRedirects: true })
 
 // @ts-expect-error debug must be a boolean
 initHotwireNative({ debug: 'yes' })

@@ -37,9 +37,12 @@ export default class InertiaDriver {
   // Targets of location visits (409 + X-Inertia-Location) taken from Inertia,
   // keyed by the response's headers object.
   #locations = new WeakMap()
+  #proposeFormRedirects
+  #formStartLocation = null
 
-  constructor(session) {
+  constructor(session, { proposeFormRedirects = false } = {}) {
     this.session = session
+    this.#proposeFormRedirects = proposeFormRedirects
   }
 
   get adapter() {
@@ -97,6 +100,19 @@ export default class InertiaDriver {
       log('inertia', 'location visit → visitProposed', { location: location.href })
       this.session.visitProposedToLocation(location, { action: 'advance' })
     }
+  }
+
+  // A validation error redirects back, so only a changed URL is a result page.
+  #proposeFormRedirect(visit) {
+    const startLocation = this.#formStartLocation
+    this.#formStartLocation = null
+    if (!this.#proposeFormRedirects || visit.cancelled || visit.interrupted) return
+
+    const location = new URL(window.location.href)
+    if (!startLocation || withoutHash(location) === withoutHash(new URL(startLocation))) return
+
+    log('inertia', 'form redirect → visitProposed', { location: location.href })
+    this.session.proposeVisitFrom(startLocation, location, { action: 'advance' })
   }
 
   // Counts history writes rather than the visits we see, so navigations that
@@ -310,6 +326,7 @@ export default class InertiaDriver {
       const { visit } = event.detail
       if (visit.method !== 'get') {
         log('inertia', 'form start → formSubmissionStarted', { url: visit.url })
+        this.#formStartLocation = window.location.href
         this.adapter?.formSubmissionStarted({ location: new URL(visit.url, window.location.href) })
       }
     })
@@ -359,6 +376,7 @@ export default class InertiaDriver {
       if (visit.method !== 'get') {
         log('inertia', 'form finish → formSubmissionFinished', { url: visit.url })
         this.adapter?.formSubmissionFinished({ location: new URL(visit.url, window.location.href) })
+        this.#proposeFormRedirect(visit)
       }
     })
   }

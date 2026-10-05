@@ -6,7 +6,7 @@ import { enableDebug, log } from './log.js'
 
 // Installs the `window.Turbo` shim that Hotwire Native's injected turbo.js
 // drives. Inert in a regular browser (nothing registers an adapter).
-export function initHotwireNative({ debug = false } = {}) {
+export function initHotwireNative({ debug = false, proposeFormRedirects = false } = {}) {
   if (debug) enableDebug()
 
   // Idempotent: a repeat call (HMR, double import, StrictMode) would register a
@@ -34,7 +34,7 @@ export function initHotwireNative({ debug = false } = {}) {
     },
   }
 
-  session.registerDriver(new InertiaDriver(session))
+  session.registerDriver(new InertiaDriver(session, { proposeFormRedirects }))
   installBridge()
 
   // Cold boot: if turbo.js ran before this bundle, it's waiting on a turbo:load

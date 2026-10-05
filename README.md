@@ -44,6 +44,18 @@ createInertiaApp({ /* ... */ })
 That's all that's needed for native navigation (push/pop/replace/restore,
 modals, forms, error screens, pull-to-refresh).
 
+### Form redirects
+
+By default a form's result stays in the web view the form was in. Pass
+`proposeFormRedirects: true` to propose the page a form lands on to native
+instead, as Turbo does — native's path configuration then decides, e.g.
+dismissing a modal to show the result in the main stack. Validation errors
+redirect back to the form's own URL and are not proposed.
+
+```js
+initHotwireNative({ proposeFormRedirects: true })
+```
+
 ### Bridge components (React)
 
 `useBridgeComponent(name)` is the generic primitive: it returns whether the

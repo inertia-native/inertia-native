@@ -9,6 +9,13 @@ export interface InitHotwireNativeOptions {
    * Inspector to see it). Off by default.
    */
   debug?: boolean
+  /**
+   * After a form submission lands on another URL, propose that URL to native,
+   * as Turbo does with a form's redirect. Native's path configuration then
+   * decides, e.g. dismissing a modal to show the result. Off by default: the
+   * result stays in the web view the form was in.
+   */
+  proposeFormRedirects?: boolean
 }
 
 /**
