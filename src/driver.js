@@ -7,6 +7,25 @@ const { router } = inertia
 // entry to restore (cold boot onto this screen) → fall back to a fresh request.
 const RESTORE_POPSTATE_TIMEOUT_MS = 250
 
+// Visits that update the current page rather than open a new one: partial
+// reloads, polls, deferred props, filters. Native would run them as a full
+// visit and drop these options.
+function staysOnPage(visit) {
+  return (
+    visit.async ||
+    visit.preserveState === true ||
+    visit.preserveUrl ||
+    visit.only?.length > 0 ||
+    visit.except?.length > 0 ||
+    visit.reset?.length > 0 ||
+    withoutHash(new URL(visit.url, window.location.href)) === withoutHash(window.location)
+  )
+}
+
+function withoutHash(url) {
+  return url.href.split('#')[0]
+}
+
 export default class InertiaDriver {
   #activeVisit = null
   #cancelToken = null
@@ -71,7 +90,7 @@ export default class InertiaDriver {
       return
     }
 
-    if (location.href.split('#')[0] === window.location.href.split('#')[0]) {
+    if (withoutHash(location) === withoutHash(window.location)) {
       log('inertia', 'location visit (same page) → pageInvalidated', { location: location.href })
       this.adapter?.pageInvalidated()
     } else {
@@ -232,10 +251,23 @@ export default class InertiaDriver {
 
       if (!this.adapter) return
 
+      // turbo.js disables prefetching too: the next screen may load in another
+      // web view, and proposing a prefetch would open it without a tap.
+      if (visit.prefetch) {
+        log('inertia', 'before (prefetch, cancelled)', { url: visit.url })
+        event.preventDefault()
+        return
+      }
+
       // Form submissions stay in the webview; native is notified via
       // formSubmission{Started,Finished} in the start/finish handlers.
       if (visit.method !== 'get') {
         log('inertia', 'before (form submission, passthrough)', { url: visit.url, method: visit.method })
+        return
+      }
+
+      if (staysOnPage(visit)) {
+        log('inertia', 'before (same-page visit, passthrough)', { url: visit.url })
         return
       }
 

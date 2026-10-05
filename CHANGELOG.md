@@ -15,6 +15,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   behind native's back. An asset version mismatch reloads the screen, and an
   `inertia_location` redirect goes to native, which decides where it opens.
   Requires `@inertiajs/core` 3; on v2 Inertia still follows them itself.
+- Partial reloads, async visits, `preserveState`/`preserveUrl` visits and
+  visits to the current URL stay in the web view instead of opening a native
+  screen, so `usePoll`, `<WhenVisible>`, `<InfiniteScroll>` and filters work.
+- Prefetches are cancelled rather than proposed to native, which opened the
+  link without a tap.
 
 ## [0.1.0-beta.1] — 2026-07-25
 
