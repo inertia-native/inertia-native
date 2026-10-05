@@ -128,13 +128,46 @@ export default class InertiaDriver {
     // chain. Called inline, Inertia's async continuation after `before` never
     // runs in WKWebView's context.
     setTimeout(() => {
-      router.visit(visit.location.href, {
-        replace: visit.action === 'replace',
-        onCancelToken: (token) => {
-          this.#cancelToken = token
-        },
-      })
+      router.visit(visit.location.href, this.#visitOptions(visit, { replace: visit.action === 'replace' }))
     }, 0)
+  }
+
+  // Reports through per-visit callbacks rather than router events, so an async
+  // visit running alongside (a poll, deferred props) can't report on or end
+  // this one. A cancelled visit is no longer active and stays quiet.
+  #visitOptions(visit, options) {
+    const isActive = () => this.#activeVisit === visit
+
+    return {
+      ...options,
+      onCancelToken: (token) => {
+        this.#cancelToken = token
+      },
+      onStart: () => {
+        if (!isActive()) return
+        log('inertia', 'start → visitRequestStarted', { id: visit.identifier })
+        this.adapter?.visitRequestStarted(visit)
+      },
+      onSuccess: () => {
+        if (!isActive()) return
+        log('inertia', 'success → visitRequestCompleted', { id: visit.identifier })
+        this.adapter?.visitRequestCompleted(visit)
+        // Double rAF: report rendered/completed only after the new page paints.
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            log('native', 'visitRendered + visitCompleted', { id: visit.identifier })
+            this.adapter?.visitRendered(visit)
+            this.adapter?.visitCompleted(visit)
+          })
+        )
+      },
+      onFinish: () => {
+        if (!isActive()) return
+        log('inertia', 'finish → visitRequestFinished', { id: visit.identifier })
+        this.adapter?.visitRequestFinished(visit)
+        this.#activeVisit = null
+      },
+    }
   }
 
   // Inertia's popstate handler swaps the cached page quietly (no
@@ -153,12 +186,7 @@ export default class InertiaDriver {
     const freshRequest = (reason) => {
       cleanup()
       log('inertia', reason, { url: visit.location.href })
-      router.visit(visit.location.href, {
-        replace: true,
-        onCancelToken: (token) => {
-          this.#cancelToken = token
-        },
-      })
+      router.visit(visit.location.href, this.#visitOptions(visit, { replace: true }))
     }
 
     const onPopstate = () => {
@@ -283,26 +311,7 @@ export default class InertiaDriver {
       if (visit.method !== 'get') {
         log('inertia', 'form start → formSubmissionStarted', { url: visit.url })
         this.adapter?.formSubmissionStarted({ location: new URL(visit.url, window.location.href) })
-        return
       }
-      if (!this.#activeVisit) return
-      log('inertia', 'start → visitRequestStarted', { id: this.#activeVisit.identifier })
-      this.adapter?.visitRequestStarted(this.#activeVisit)
-    })
-
-    router.on('success', () => {
-      if (!this.#activeVisit) return
-      const visit = this.#activeVisit
-      log('inertia', 'success → visitRequestCompleted', { id: visit.identifier })
-      this.adapter?.visitRequestCompleted(visit)
-      // Double rAF: report rendered/completed only after the new page paints.
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => {
-          log('native', 'visitRendered + visitCompleted', { id: visit.identifier })
-          this.adapter?.visitRendered(visit)
-          this.adapter?.visitCompleted(visit)
-        })
-      )
     })
 
     // v3.4 renamed `invalid` → `httpException`; listen for both to support the
@@ -350,12 +359,7 @@ export default class InertiaDriver {
       if (visit.method !== 'get') {
         log('inertia', 'form finish → formSubmissionFinished', { url: visit.url })
         this.adapter?.formSubmissionFinished({ location: new URL(visit.url, window.location.href) })
-        return
       }
-      if (!this.#activeVisit) return
-      log('inertia', 'finish → visitRequestFinished', { id: this.#activeVisit.identifier })
-      this.adapter?.visitRequestFinished(this.#activeVisit)
-      this.#activeVisit = null
     })
   }
 }

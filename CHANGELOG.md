@@ -20,6 +20,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   screen, so `usePoll`, `<WhenVisible>`, `<InfiniteScroll>` and filters work.
 - Prefetches are cancelled rather than proposed to native, which opened the
   link without a tap.
+- An async visit (a poll, deferred props) finishing during a native visit no
+  longer reports that visit as finished. Native visits now report through
+  their own per-visit callbacks instead of router events.
 
 ## [0.1.0-beta.1] — 2026-07-25
 

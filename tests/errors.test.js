@@ -6,25 +6,30 @@ import { setup } from './harness.js'
 // failure to native so it can show its error screen instead of hanging.
 describe('error handling', () => {
   let h
+  const visitCalls = []
 
   beforeAll(async () => {
     h = await setup()
-    h.router.visit = () => {} // lifecycle is driven manually below
+    h.router.visit = (url, opts = {}) => visitCalls.push({ url: String(url), opts })
     h.initHotwireNative({ debug: false })
     h.loadFixture('turbo.js')
     await h.tick()
   })
 
-  function nativeVisit(url) {
+  // Starts a native visit and returns the per-visit callbacks Inertia would run.
+  async function nativeVisit(url) {
     window.Turbo.navigator.startVisit(url, null, { action: 'advance' })
+    await h.tick()
+    const callbacks = visitCalls.at(-1).opts
+    callbacks.onStart()
+    return callbacks
   }
 
   it('reports a 404 with its status code and suppresses the Inertia overlay', async () => {
     h.turboMessages.length = 0
-    nativeVisit('http://localhost:3000/not_found')
-    h.dispatchInertia('start', { visit: {} })
+    const visit = await nativeVisit('http://localhost:3000/not_found')
     const httpEvent = h.dispatchInertia('httpException', { response: { status: 404 } }, { cancelable: true })
-    h.dispatchInertia('finish', { visit: {} })
+    visit.onFinish()
     await h.tick()
 
     expect(httpEvent.defaultPrevented).toBe(true)
@@ -34,14 +39,13 @@ describe('error handling', () => {
 
   it('invalidates the page on a 2xx response without X-Inertia', async () => {
     h.turboMessages.length = 0
-    nativeVisit('http://localhost:3000/legacy')
-    h.dispatchInertia('start', { visit: {} })
+    const visit = await nativeVisit('http://localhost:3000/legacy')
     const httpEvent = h.dispatchInertia(
       'httpException',
       { response: { status: 200, headers: {} } },
       { cancelable: true }
     )
-    h.dispatchInertia('finish', { visit: {} })
+    visit.onFinish()
     await h.tick()
 
     expect(httpEvent.defaultPrevented).toBe(true)
@@ -68,10 +72,9 @@ describe('error handling', () => {
 
   it('routes a network failure as a non-HTTP failure', async () => {
     h.turboMessages.length = 0
-    nativeVisit('http://localhost:3000/navigation')
-    h.dispatchInertia('start', { visit: {} })
+    const visit = await nativeVisit('http://localhost:3000/navigation')
     h.dispatchInertia('networkError', { error: new Error('offline') }, { cancelable: true })
-    h.dispatchInertia('finish', { visit: {} })
+    visit.onFinish()
     await h.tick()
 
     expect(h.turboMessages.some((m) => m.name === 'visitRequestFailedWithNonHttpStatusCode')).toBe(true)
@@ -82,10 +85,9 @@ describe('error handling', () => {
   // screens keep working across the whole declared peer range.
   it('reports a 404 from the legacy `invalid` event', async () => {
     h.turboMessages.length = 0
-    nativeVisit('http://localhost:3000/not_found')
-    h.dispatchInertia('start', { visit: {} })
+    const visit = await nativeVisit('http://localhost:3000/not_found')
     const invalidEvent = h.dispatchInertia('invalid', { response: { status: 404 } }, { cancelable: true })
-    h.dispatchInertia('finish', { visit: {} })
+    visit.onFinish()
     await h.tick()
 
     expect(invalidEvent.defaultPrevented).toBe(true)
@@ -95,10 +97,9 @@ describe('error handling', () => {
 
   it('routes the legacy `exception` event as a non-HTTP failure', async () => {
     h.turboMessages.length = 0
-    nativeVisit('http://localhost:3000/navigation')
-    h.dispatchInertia('start', { visit: {} })
+    const visit = await nativeVisit('http://localhost:3000/navigation')
     h.dispatchInertia('exception', { exception: new Error('offline') }, { cancelable: true })
-    h.dispatchInertia('finish', { visit: {} })
+    visit.onFinish()
     await h.tick()
 
     expect(h.turboMessages.some((m) => m.name === 'visitRequestFailedWithNonHttpStatusCode')).toBe(true)
