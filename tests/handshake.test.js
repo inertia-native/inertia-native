@@ -17,6 +17,9 @@ describe('handshake', () => {
 
     expect(window.Turbo.session.adapter).toBeTruthy()
 
+    const ready = h.turboMessages.find((m) => m.name === 'turboIsReady')
+    expect(ready?.data?.isReady).toBe(true)
+
     const pageLoaded = h.turboMessages.find((m) => m.name === 'pageLoaded')
     expect(pageLoaded).toBeTruthy()
     expect(typeof pageLoaded.data.restorationIdentifier).toBe('string')
