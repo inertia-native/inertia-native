@@ -8,6 +8,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `useBridgeComponent` returns `restored`, bumped on `native:restore` (Android,
+  back from a native screen), so a component can send `connect` again.
+
 - `proposeFormRedirects` option: after a form lands on another URL, propose it
   to native as Turbo does, so a modal form can be dismissed to show its result.
 
