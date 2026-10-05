@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `proposeFormRedirects` option: after a form lands on another URL, propose it
+  to native as Turbo does, so a modal form can be dismissed to show its result.
+
 ### Fixed
 
 - A native visit that gets a successful non-Inertia response (e.g. a classic
