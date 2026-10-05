@@ -11,6 +11,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A native visit that gets a successful non-Inertia response (e.g. a classic
   Turbo page) now asks native to reload the web view (`pageInvalidated`)
   instead of showing an error screen.
+- Location visits (409 + `X-Inertia-Location`) no longer navigate the web view
+  behind native's back. An asset version mismatch reloads the screen, and an
+  `inertia_location` redirect goes to native, which decides where it opens.
+  Requires `@inertiajs/core` 3; on v2 Inertia still follows them itself.
 
 ## [0.1.0-beta.1] — 2026-07-25
 
