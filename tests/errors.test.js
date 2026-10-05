@@ -32,6 +32,40 @@ describe('error handling', () => {
     expect(failed?.data?.statusCode).toBe(404)
   })
 
+  it('invalidates the page on a 2xx response without X-Inertia', async () => {
+    h.turboMessages.length = 0
+    nativeVisit('http://localhost:3000/legacy')
+    h.dispatchInertia('start', { visit: {} })
+    const httpEvent = h.dispatchInertia(
+      'httpException',
+      { response: { status: 200, headers: {} } },
+      { cancelable: true }
+    )
+    h.dispatchInertia('finish', { visit: {} })
+    await h.tick()
+
+    expect(httpEvent.defaultPrevented).toBe(true)
+    const names = h.turboMessages.map((m) => m.name)
+    expect(names).toContain('pageInvalidated')
+    expect(names).not.toContain('visitRequestFailed')
+  })
+
+  // Forms don't run through a native visit; reloading would land on the
+  // screen's old URL rather than the submission's result.
+  it('leaves a non-Inertia response to a form alone', async () => {
+    window.Turbo.navigator.stop() // no native visit in flight
+    h.turboMessages.length = 0
+    const httpEvent = h.dispatchInertia(
+      'httpException',
+      { response: { status: 200, headers: {} } },
+      { cancelable: true }
+    )
+    await h.tick()
+
+    expect(httpEvent.defaultPrevented).toBe(false)
+    expect(h.turboMessages.map((m) => m.name)).not.toContain('pageInvalidated')
+  })
+
   it('routes a network failure as a non-HTTP failure', async () => {
     h.turboMessages.length = 0
     nativeVisit('http://localhost:3000/navigation')
