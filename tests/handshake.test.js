@@ -26,11 +26,6 @@ describe('handshake', () => {
     expect(pageLoaded.data.restorationIdentifier.length).toBeGreaterThan(0)
   })
 
-  it('keeps initHotwireNative as an alias', async () => {
-    const mod = await import('../src/index.js')
-    expect(mod.initHotwireNative).toBe(mod.initInertiaNative)
-  })
-
   // A second init (HMR, double import, StrictMode) must not register a second
   // driver — otherwise every Inertia event would report to native twice.
   it('is idempotent: a repeat call does not duplicate native messages', async () => {

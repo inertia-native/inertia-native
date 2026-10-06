@@ -1,7 +1,5 @@
-import * as inertia from '@inertiajs/core'
+import { http, router } from '@inertiajs/core'
 import { log } from './log.js'
-
-const { router } = inertia
 
 // No popstate within this window after history.back() means there's no cached
 // entry to restore (cold boot onto this screen) → fall back to a fresh request.
@@ -63,9 +61,8 @@ export default class InertiaDriver {
   // Inertia follows a location visit with window.location, out of native's
   // sight and before any event fires. Stripping the header turns it into an
   // httpException, which the listener below hands to native instead.
-  // `http` exists from @inertiajs/core 3; on v2 Inertia still navigates itself.
   #interceptLocationVisits() {
-    inertia.http?.onError((error) => {
+    http.onError((error) => {
       const response = error.response
       const location = response?.headers?.['x-inertia-location']
       if (!this.adapter || response.status !== 409 || !location) return
@@ -331,8 +328,6 @@ export default class InertiaDriver {
       }
     })
 
-    // v3.4 renamed `invalid` → `httpException`; listen for both to support the
-    // whole >=2.0 peer range. A given core version fires only one name.
     const onHttpException = (event) => {
       const response = event.detail.response
       const location = response?.headers && this.#locations.get(response.headers)
@@ -359,17 +354,14 @@ export default class InertiaDriver {
       this.adapter?.visitRequestFailedWithStatusCode(this.#activeVisit, status)
     }
     router.on('httpException', onHttpException)
-    router.on('invalid', onHttpException)
 
-    // v3.4 renamed `exception` → `networkError`; status 0 routes it as a
-    // non-HTTP failure.
+    // Status 0 routes it as a non-HTTP failure.
     const onNetworkError = () => {
       if (!this.#activeVisit) return
       log('inertia', 'networkError → visitRequestFailedWithStatusCode(0)')
       this.adapter?.visitRequestFailedWithStatusCode(this.#activeVisit, 0)
     }
     router.on('networkError', onNetworkError)
-    router.on('exception', onNetworkError)
 
     router.on('finish', (event) => {
       const { visit } = event.detail

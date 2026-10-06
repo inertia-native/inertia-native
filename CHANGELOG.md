@@ -8,9 +8,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- `initHotwireNative` is now `initInertiaNative`, and `InitHotwireNativeOptions`
-  is `InitInertiaNativeOptions`. The old names remain as deprecated aliases.
-  Debug logs are prefixed `[inertia-native]`.
+- **Breaking:** `initHotwireNative` is now `initInertiaNative`, and
+  `InitHotwireNativeOptions` is `InitInertiaNativeOptions`. Debug logs are
+  prefixed `[inertia-native]`.
+- **Breaking:** requires `@inertiajs/core` 3.0 or newer. Support for v2 and its
+  `invalid`/`exception` router events is dropped.
+- `TurboShim`, `TurboNativeAdapter`, `NativeBridgeAdapter` and
+  `VisitProposalOptions` are marked internal and may change in minor releases.
 
 ## [0.1.0-beta.2] — 2026-10-06
 

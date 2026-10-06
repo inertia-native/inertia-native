@@ -44,6 +44,3 @@ export function initInertiaNative({ debug = false, proposeFormRedirects = false 
     document.dispatchEvent(new Event('turbo:load'))
   }, 0)
 }
-
-/** @deprecated Renamed to `initInertiaNative`. */
-export const initHotwireNative = initInertiaNative
