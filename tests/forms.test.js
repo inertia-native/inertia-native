@@ -6,10 +6,11 @@ import { setup } from './harness.js'
 // proposed — and report formSubmissionStarted/Finished to native.
 describe('forms', () => {
   let h
+  const visitCalls = []
 
   beforeAll(async () => {
     h = await setup()
-    h.router.visit = () => {}
+    h.router.visit = (url, opts = {}) => visitCalls.push({ url: String(url), opts })
     h.initHotwireNative({ debug: false })
     h.loadFixture('turbo.js')
     await h.tick()
@@ -37,9 +38,11 @@ describe('forms', () => {
   it('still drives the lifecycle for a GET visit (regression)', async () => {
     h.turboMessages.length = 0
     window.Turbo.navigator.startVisit('http://localhost:3000/navigation', null, { action: 'advance' })
-    h.dispatchInertia('start', { visit: { url: 'http://localhost:3000/navigation', method: 'get' } })
-    h.dispatchInertia('success', { page: {} })
-    h.dispatchInertia('finish', { visit: { url: 'http://localhost:3000/navigation', method: 'get' } })
+    await h.tick()
+    const callbacks = visitCalls.at(-1).opts
+    callbacks.onStart()
+    callbacks.onSuccess()
+    callbacks.onFinish()
     await h.tick(20)
 
     const names = h.turboMessages.map((m) => m.name)

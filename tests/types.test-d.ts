@@ -14,6 +14,7 @@ import type { Readable } from 'svelte/store'
 initHotwireNative()
 initHotwireNative({})
 initHotwireNative({ debug: true })
+initHotwireNative({ proposeFormRedirects: true })
 
 // @ts-expect-error debug must be a boolean
 initHotwireNative({ debug: 'yes' })
@@ -34,6 +35,8 @@ void supportsForm
 const menu = useBridgeComponent('menu')
 const supported: boolean = menu.supported
 void supported
+const restored: number = menu.restored
+void restored
 const id: string | null = menu.send('connect', { title: 'x' }, (m: BridgeMessage) => m.id)
 void id
 menu.send('event') // data/callback optional

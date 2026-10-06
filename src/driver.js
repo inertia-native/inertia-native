@@ -1,17 +1,48 @@
-import { router } from '@inertiajs/core'
+import * as inertia from '@inertiajs/core'
 import { log } from './log.js'
+
+const { router } = inertia
 
 // No popstate within this window after history.back() means there's no cached
 // entry to restore (cold boot onto this screen) → fall back to a fresh request.
 const RESTORE_POPSTATE_TIMEOUT_MS = 250
 
+// Visits that update the current page rather than open a new one: partial
+// reloads, polls, deferred props, filters. Native would run them as a full
+// visit and drop these options.
+function staysOnPage(visit) {
+  return (
+    visit.async ||
+    visit.preserveState === true ||
+    visit.preserveUrl ||
+    visit.only?.length > 0 ||
+    visit.except?.length > 0 ||
+    visit.reset?.length > 0 ||
+    withoutHash(new URL(visit.url, window.location.href)) === withoutHash(window.location)
+  )
+}
+
+function withoutHash(url) {
+  return url.href.split('#')[0]
+}
+
 export default class InertiaDriver {
   #activeVisit = null
   #cancelToken = null
   #restoreCleanup = null
+  // Inertia writes the first page with replaceState, so 0 means the entry
+  // behind us is not one of ours.
+  #pushedEntries = 0
+  #historyTracked = false
+  // Targets of location visits (409 + X-Inertia-Location) taken from Inertia,
+  // keyed by the response's headers object.
+  #locations = new WeakMap()
+  #proposeFormRedirects
+  #formStartLocation = null
 
-  constructor(session) {
+  constructor(session, { proposeFormRedirects = false } = {}) {
     this.session = session
+    this.#proposeFormRedirects = proposeFormRedirects
   }
 
   get adapter() {
@@ -24,7 +55,78 @@ export default class InertiaDriver {
 
   start() {
     log('inertia', 'driver started')
+    this.#trackHistoryDepth()
+    this.#interceptLocationVisits()
     this.#setupInertiaListeners()
+  }
+
+  // Inertia follows a location visit with window.location, out of native's
+  // sight and before any event fires. Stripping the header turns it into an
+  // httpException, which the listener below hands to native instead.
+  // `http` exists from @inertiajs/core 3; on v2 Inertia still navigates itself.
+  #interceptLocationVisits() {
+    inertia.http?.onError((error) => {
+      const response = error.response
+      const location = response?.headers?.['x-inertia-location']
+      if (!this.adapter || response.status !== 409 || !location) return
+
+      delete response.headers['x-inertia-location']
+      this.#locations.set(response.headers, new URL(location, window.location.href))
+    })
+  }
+
+  #handOffLocation(location) {
+    const visit = this.#activeVisit
+
+    if (visit) {
+      if (location.origin !== window.location.origin) {
+        // As turbo.js reports a cross-origin redirect: native refetches the
+        // visit, follows the redirect, pops this screen and routes the target.
+        log('inertia', 'location visit (cross-origin) → visitRequestFailedWithStatusCode(0)', { location: location.href })
+        this.adapter?.visitRequestFailedWithStatusCode(visit, 0)
+      } else {
+        // A cold reload of the visit gets the server's plain redirect, or the
+        // new asset version.
+        log('inertia', 'location visit → pageInvalidated', { location: location.href })
+        this.adapter?.pageInvalidated()
+      }
+      return
+    }
+
+    if (withoutHash(location) === withoutHash(window.location)) {
+      log('inertia', 'location visit (same page) → pageInvalidated', { location: location.href })
+      this.adapter?.pageInvalidated()
+    } else {
+      log('inertia', 'location visit → visitProposed', { location: location.href })
+      this.session.visitProposedToLocation(location, { action: 'advance' })
+    }
+  }
+
+  // A validation error redirects back, so only a changed URL is a result page.
+  #proposeFormRedirect(visit) {
+    const startLocation = this.#formStartLocation
+    this.#formStartLocation = null
+    if (!this.#proposeFormRedirects || visit.cancelled || visit.interrupted) return
+
+    const location = new URL(window.location.href)
+    if (!startLocation || withoutHash(location) === withoutHash(new URL(startLocation))) return
+
+    log('inertia', 'form redirect → visitProposed', { location: location.href })
+    this.session.proposeVisitFrom(startLocation, location, { action: 'advance' })
+  }
+
+  // Counts history writes rather than the visits we see, so navigations that
+  // bypass the driver still land in the count.
+  #trackHistoryDepth() {
+    if (this.#historyTracked) return
+    this.#historyTracked = true
+
+    const pushState = window.history.pushState.bind(window.history)
+    window.history.pushState = (...args) => {
+      const result = pushState(...args)
+      this.#pushedEntries += 1
+      return result
+    }
   }
 
   visitStarted(_visit) {}
@@ -42,13 +144,46 @@ export default class InertiaDriver {
     // chain. Called inline, Inertia's async continuation after `before` never
     // runs in WKWebView's context.
     setTimeout(() => {
-      router.visit(visit.location.href, {
-        replace: visit.action === 'replace',
-        onCancelToken: (token) => {
-          this.#cancelToken = token
-        },
-      })
+      router.visit(visit.location.href, this.#visitOptions(visit, { replace: visit.action === 'replace' }))
     }, 0)
+  }
+
+  // Reports through per-visit callbacks rather than router events, so an async
+  // visit running alongside (a poll, deferred props) can't report on or end
+  // this one. A cancelled visit is no longer active and stays quiet.
+  #visitOptions(visit, options) {
+    const isActive = () => this.#activeVisit === visit
+
+    return {
+      ...options,
+      onCancelToken: (token) => {
+        this.#cancelToken = token
+      },
+      onStart: () => {
+        if (!isActive()) return
+        log('inertia', 'start → visitRequestStarted', { id: visit.identifier })
+        this.adapter?.visitRequestStarted(visit)
+      },
+      onSuccess: () => {
+        if (!isActive()) return
+        log('inertia', 'success → visitRequestCompleted', { id: visit.identifier })
+        this.adapter?.visitRequestCompleted(visit)
+        // Double rAF: report rendered/completed only after the new page paints.
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            log('native', 'visitRendered + visitCompleted', { id: visit.identifier })
+            this.adapter?.visitRendered(visit)
+            this.adapter?.visitCompleted(visit)
+          })
+        )
+      },
+      onFinish: () => {
+        if (!isActive()) return
+        log('inertia', 'finish → visitRequestFinished', { id: visit.identifier })
+        this.adapter?.visitRequestFinished(visit)
+        this.#activeVisit = null
+      },
+    }
   }
 
   // Inertia's popstate handler swaps the cached page quietly (no
@@ -64,9 +199,29 @@ export default class InertiaDriver {
     }
     this.#restoreCleanup = cleanup
 
+    const freshRequest = (reason) => {
+      cleanup()
+      log('inertia', reason, { url: visit.location.href })
+      router.visit(visit.location.href, this.#visitOptions(visit, { replace: true }))
+    }
+
     const onPopstate = () => {
       if (settled) return
+
+      // Backstop for a #pushedEntries overcount: popstate fires wherever we
+      // land, including on a non-Inertia entry where nothing was restored.
+      //
+      // This only sees the real landing spot because Inertia's own popstate
+      // handler, registered first, defers its URL repair to a microtask. Make
+      // that repair synchronous and both conditions stop firing.
+      if (!window.history.state?.page || window.location.href !== visit.location.href) {
+        this.#pushedEntries = 0
+        freshRequest('restore: landed off-target → fresh request')
+        return
+      }
+
       cleanup()
+      this.#pushedEntries = Math.max(0, this.#pushedEntries - 1)
 
       log('inertia', 'restore from history cache (no request)', { url: window.location.href })
       const adapter = this.adapter
@@ -84,15 +239,16 @@ export default class InertiaDriver {
 
     const fallback = setTimeout(() => {
       if (settled) return
-      cleanup()
-      log('inertia', 'restore: no cached entry → fresh request', { url: visit.location.href })
-      router.visit(visit.location.href, {
-        replace: true,
-        onCancelToken: (token) => {
-          this.#cancelToken = token
-        },
-      })
+      freshRequest('restore: no cached entry → fresh request')
     }, RESTORE_POPSTATE_TIMEOUT_MS)
+
+    // Stepping back off our own entries leaves the document, and the web view
+    // paints Hotwire's bootstrap page before anything above can react. The
+    // handlers can only recover from that blank, not prevent it.
+    if (this.#pushedEntries === 0) {
+      freshRequest('restore: at the first entry → fresh request')
+      return
+    }
 
     window.addEventListener('popstate', onPopstate)
     setTimeout(() => window.history.back(), 0)
@@ -139,10 +295,23 @@ export default class InertiaDriver {
 
       if (!this.adapter) return
 
+      // turbo.js disables prefetching too: the next screen may load in another
+      // web view, and proposing a prefetch would open it without a tap.
+      if (visit.prefetch) {
+        log('inertia', 'before (prefetch, cancelled)', { url: visit.url })
+        event.preventDefault()
+        return
+      }
+
       // Form submissions stay in the webview; native is notified via
       // formSubmission{Started,Finished} in the start/finish handlers.
       if (visit.method !== 'get') {
         log('inertia', 'before (form submission, passthrough)', { url: visit.url, method: visit.method })
+        return
+      }
+
+      if (staysOnPage(visit)) {
+        log('inertia', 'before (same-page visit, passthrough)', { url: visit.url })
         return
       }
 
@@ -157,36 +326,36 @@ export default class InertiaDriver {
       const { visit } = event.detail
       if (visit.method !== 'get') {
         log('inertia', 'form start → formSubmissionStarted', { url: visit.url })
+        this.#formStartLocation = window.location.href
         this.adapter?.formSubmissionStarted({ location: new URL(visit.url, window.location.href) })
-        return
       }
-      if (!this.#activeVisit) return
-      log('inertia', 'start → visitRequestStarted', { id: this.#activeVisit.identifier })
-      this.adapter?.visitRequestStarted(this.#activeVisit)
-    })
-
-    router.on('success', () => {
-      if (!this.#activeVisit) return
-      const visit = this.#activeVisit
-      log('inertia', 'success → visitRequestCompleted', { id: visit.identifier })
-      this.adapter?.visitRequestCompleted(visit)
-      // Double rAF: report rendered/completed only after the new page paints.
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => {
-          log('native', 'visitRendered + visitCompleted', { id: visit.identifier })
-          this.adapter?.visitRendered(visit)
-          this.adapter?.visitCompleted(visit)
-        })
-      )
     })
 
     // v3.4 renamed `invalid` → `httpException`; listen for both to support the
     // whole >=2.0 peer range. A given core version fires only one name.
     const onHttpException = (event) => {
+      const response = event.detail.response
+      const location = response?.headers && this.#locations.get(response.headers)
+      if (location) {
+        event.preventDefault()
+        this.#handOffLocation(location)
+        return
+      }
+
       if (!this.#activeVisit) return
-      const status = event.detail.response?.status ?? 0
-      log('inertia', 'httpException → visitRequestFailedWithStatusCode', { status })
+      const status = response?.status ?? 0
       event.preventDefault()
+
+      // A successful non-Inertia response is a page this bundle can't render
+      // (e.g. a classic Turbo page). Have native reload the web view, as
+      // turbo.js does when tracked assets change.
+      if (status >= 200 && status < 300 && !response?.headers?.['x-inertia']) {
+        log('inertia', 'non-Inertia response → pageInvalidated', { status })
+        this.adapter?.pageInvalidated()
+        return
+      }
+
+      log('inertia', 'httpException → visitRequestFailedWithStatusCode', { status })
       this.adapter?.visitRequestFailedWithStatusCode(this.#activeVisit, status)
     }
     router.on('httpException', onHttpException)
@@ -207,12 +376,8 @@ export default class InertiaDriver {
       if (visit.method !== 'get') {
         log('inertia', 'form finish → formSubmissionFinished', { url: visit.url })
         this.adapter?.formSubmissionFinished({ location: new URL(visit.url, window.location.href) })
-        return
+        this.#proposeFormRedirect(visit)
       }
-      if (!this.#activeVisit) return
-      log('inertia', 'finish → visitRequestFinished', { id: this.#activeVisit.identifier })
-      this.adapter?.visitRequestFinished(this.#activeVisit)
-      this.#activeVisit = null
     })
   }
 }

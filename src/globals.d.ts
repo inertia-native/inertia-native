@@ -32,6 +32,7 @@ export interface TurboNativeAdapter {
   visitCompleted(visit: unknown): void
   formSubmissionStarted(submission: { location: URL }): void
   formSubmissionFinished(submission: { location: URL }): void
+  pageInvalidated(): void
 }
 
 /** The `window.Turbo` shim this package installs for `turbo.js` to drive. */

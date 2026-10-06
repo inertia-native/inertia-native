@@ -1,6 +1,6 @@
-# Inertia Hotwire Native
+# Inertia Native
 
-[![CI](https://github.com/zumkorn/inertia-hotwire-native/actions/workflows/ci.yml/badge.svg)](https://github.com/zumkorn/inertia-hotwire-native/actions/workflows/ci.yml)
+[![CI](https://github.com/inertia-native/inertia-native/actions/workflows/ci.yml/badge.svg)](https://github.com/inertia-native/inertia-native/actions/workflows/ci.yml)
 
 Drive [Inertia.js](https://inertiajs.com) navigation and bridge components from
 [Hotwire Native](https://native.hotwired.dev) (iOS & Android).
@@ -19,13 +19,17 @@ navigates exactly as usual.
 - **Vue bindings** (`./vue`) — optional, peer-depends on `vue`.
 - **Svelte bindings** (`./svelte`) — optional, peer-depends on `svelte`.
 
+Docs: [inertia-native.dev](https://inertia-native.dev). Formerly published as
+`inertia-hotwire-native`. A community project, not affiliated with the
+Inertia.js team.
+
 ## Install
 
 > **Beta.** This is a pre-1.0 release published under the `beta` tag; the API
 > may still change.
 
 ```bash
-npm add inertia-hotwire-native@beta
+npm add inertia-native@beta
 ```
 
 ## Usage
@@ -35,7 +39,7 @@ entrypoint:
 
 ```js
 import { createInertiaApp } from '@inertiajs/react'
-import { initHotwireNative } from 'inertia-hotwire-native'
+import { initHotwireNative } from 'inertia-native'
 
 const isHotwireNative = !!window.webkit?.messageHandlers?.turbo
 initHotwireNative({ debug: import.meta.env.DEV || isHotwireNative })
@@ -46,6 +50,18 @@ createInertiaApp({ /* ... */ })
 That's all that's needed for native navigation (push/pop/replace/restore,
 modals, forms, error screens, pull-to-refresh).
 
+### Form redirects
+
+By default a form's result stays in the web view the form was in. Pass
+`proposeFormRedirects: true` to propose the page a form lands on to native
+instead, as Turbo does — native's path configuration then decides, e.g.
+dismissing a modal to show the result in the main stack. Validation errors
+redirect back to the form's own URL and are not proposed.
+
+```js
+initHotwireNative({ proposeFormRedirects: true })
+```
+
 ### Bridge components (React)
 
 `useBridgeComponent(name)` is the generic primitive: it returns whether the
@@ -54,7 +70,7 @@ callback?)`. Build specific components (`form`, `menu`, `overflow-menu`, …) in
 your app on top of it.
 
 ```jsx
-import { useBridgeComponent } from 'inertia-hotwire-native/react'
+import { useBridgeComponent } from 'inertia-native/react'
 
 function NativeMenu({ items }) {
   const { supported, send } = useBridgeComponent('menu')
@@ -75,15 +91,29 @@ function NativeMenu({ items }) {
 Each `send` returns a message id; native replies invoke the `callback`. The
 hook re-checks support when the native handshake completes after mount.
 
+A component that draws native UI on `connect` should send it again when the
+web view returns from a native screen (`native:restore`, dispatched on
+Android). Put `restored` in the deps of the effect that sends it:
+
+```jsx
+const { supported, send, restored } = useBridgeComponent('button')
+
+useEffect(() => {
+  if (!supported) return
+  const id = send('connect', { title }, onTap)
+  return () => window.HotwireNative?.web?.removeCallback(id)
+}, [supported, title, send, restored])
+```
+
 ### Bridge components (Vue)
 
-The Vue entry exposes the same `useBridgeComponent(name)` composable. `supported`
-is a `Ref`, so unwrap it with `.value` (or `v-if` in a template); `send` has the
-same signature.
+The Vue entry exposes the same `useBridgeComponent(name)` composable.
+`supported` and `restored` are `Ref`s, so unwrap them with `.value` (or use
+them in a template); `send` has the same signature.
 
 ```vue
 <script setup>
-import { useBridgeComponent } from 'inertia-hotwire-native/vue'
+import { useBridgeComponent } from 'inertia-native/vue'
 
 const props = defineProps(['items'])
 const { supported, send } = useBridgeComponent('menu')
@@ -98,15 +128,19 @@ function open() {
 </template>
 ```
 
+To send `connect` again after `native:restore`, watch `restored` alongside the
+other sources of the watcher that sends it.
+
 ### Bridge components (Svelte)
 
-The Svelte entry exposes `useBridgeComponent(name)` too. `supported` is a
-readable store (subscribe with `$supported`); `send` has the same signature.
-Call it during component initialization — it registers an `onDestroy` cleanup.
+The Svelte entry exposes `useBridgeComponent(name)` too. `supported` and
+`restored` are readable stores (subscribe with `$supported`, `$restored`);
+`send` has the same signature. Call it during component initialization — it
+registers an `onDestroy` cleanup.
 
 ```svelte
 <script>
-  import { useBridgeComponent } from 'inertia-hotwire-native/svelte'
+  import { useBridgeComponent } from 'inertia-native/svelte'
 
   export let items
   const { supported, send } = useBridgeComponent('menu')
@@ -119,6 +153,9 @@ Call it during component initialization — it registers an `onDestroy` cleanup.
   <button on:click={open}>Open menu</button>
 {/if}
 ```
+
+To send `connect` again after `native:restore`, reference `$restored` in the
+reactive statement that sends it.
 
 ## Requirements
 

@@ -1,4 +1,4 @@
-// Public types for the React entry (`inertia-hotwire-native/react`).
+// Public types for the React entry (`inertia-native/react`).
 import type { BridgeMessage } from './globals.js'
 
 export type { BridgeMessage }
@@ -15,6 +15,12 @@ export interface BridgeComponent {
     data?: Record<string, unknown>,
     callback?: (message: BridgeMessage) => void,
   ): string | null
+  /**
+   * Bumped each time the web view returns from a native screen
+   * (`native:restore`). Put it in the deps of the effect that sends `connect`
+   * so native redraws the component.
+   */
+  restored: number
 }
 
 /**

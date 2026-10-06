@@ -9,7 +9,7 @@ export default class Navigator {
   }
 
   get location() {
-    return new URL(window.location.href)
+    return new URL(this.delegate.locationOverride ?? window.location.href)
   }
 
   get adapter() {

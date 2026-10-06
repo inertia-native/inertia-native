@@ -26,6 +26,11 @@ describe('restore interrupted by a new visit', () => {
     visitCalls.length = 0
     h.turboMessages.length = 0
 
+    // The restore only waits on popstate when Inertia has pushed an entry to
+    // step back onto; without one it requests the page straight away and there
+    // is no pending visit to race with.
+    globalThis.history.pushState({ page: {} }, '', '/pushed')
+
     // Start a restore (arms the popstate listener), then immediately start a new
     // advance visit — Navigator#stop() cancels the pending restore.
     window.Turbo.navigator.startVisit('http://localhost:3000/', 'restore-1', { action: 'restore' })
