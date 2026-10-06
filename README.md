@@ -1,6 +1,6 @@
-# Inertia Hotwire Native
+# Inertia Native
 
-[![CI](https://github.com/zumkorn/inertia-hotwire-native/actions/workflows/ci.yml/badge.svg)](https://github.com/zumkorn/inertia-hotwire-native/actions/workflows/ci.yml)
+[![CI](https://github.com/inertia-native/inertia-native/actions/workflows/ci.yml/badge.svg)](https://github.com/inertia-native/inertia-native/actions/workflows/ci.yml)
 
 Drive [Inertia.js](https://inertiajs.com) navigation and bridge components from
 [Hotwire Native](https://native.hotwired.dev) (iOS & Android).
@@ -17,13 +17,17 @@ navigates exactly as usual.
 - **Framework-agnostic core** (`.`) — peer-depends on `@inertiajs/core`.
 - **React bindings** (`./react`) — optional, peer-depends on `react`.
 
+Docs: [inertia-native.dev](https://inertia-native.dev). Formerly published as
+`inertia-hotwire-native`. A community project, not affiliated with the
+Inertia.js team.
+
 ## Install
 
 > **Beta.** This is a pre-1.0 release published under the `beta` tag; the API
 > may still change.
 
 ```bash
-npm add inertia-hotwire-native@beta
+npm add inertia-native@beta
 ```
 
 ## Usage
@@ -33,7 +37,7 @@ entrypoint:
 
 ```js
 import { createInertiaApp } from '@inertiajs/react'
-import { initHotwireNative } from 'inertia-hotwire-native'
+import { initHotwireNative } from 'inertia-native'
 
 const isHotwireNative = !!window.webkit?.messageHandlers?.turbo
 initHotwireNative({ debug: import.meta.env.DEV || isHotwireNative })
@@ -64,7 +68,7 @@ callback?)`. Build specific components (`form`, `menu`, `overflow-menu`, …) in
 your app on top of it.
 
 ```jsx
-import { useBridgeComponent } from 'inertia-hotwire-native/react'
+import { useBridgeComponent } from 'inertia-native/react'
 
 function NativeMenu({ items }) {
   const { supported, send } = useBridgeComponent('menu')

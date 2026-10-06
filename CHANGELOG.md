@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Renamed from `inertia-hotwire-native` to `inertia-native`, and the repository
+  moved to [inertia-native/inertia-native](https://github.com/inertia-native/inertia-native).
+  Update imports to `inertia-native` and `inertia-native/react`.
+
 ### Added
 
 - `useBridgeComponent` returns `restored`, bumped on `native:restore` (Android,

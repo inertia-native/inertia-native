@@ -1,4 +1,4 @@
-// Public types for the React entry (`inertia-hotwire-native/react`).
+// Public types for the React entry (`inertia-native/react`).
 import type { BridgeMessage } from './globals.js'
 
 export type { BridgeMessage }

@@ -1,4 +1,4 @@
-// Public types for the framework-agnostic core entry (`inertia-hotwire-native`).
+// Public types for the framework-agnostic core entry (`inertia-native`).
 // Importing from here also activates the global augmentation in globals.d.ts
 // (so `window.Turbo`, `window.HotwireNative`, `window.webkit` are typed).
 import type { BridgeMessage } from './globals.js'
