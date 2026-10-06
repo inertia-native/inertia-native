@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.0-beta.2] — 2026-10-06
 
 ### Changed
 
@@ -18,7 +18,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   with `supported` and `restored` as `Ref`s.
 - Svelte bindings (`inertia-native/svelte`): `useBridgeComponent(name)` helper,
   with `supported` and `restored` as readable stores.
-- `useBridgeComponent` returns `restored`, bumped on `native:restore` (Android,
+- React `useBridgeComponent` returns `restored`, bumped on `native:restore` (Android,
   back from a native screen), so a component can send `connect` again.
 - `proposeFormRedirects` option: after a form lands on another URL, propose it
   to native as Turbo does, so a modal form can be dismissed to show its result.
