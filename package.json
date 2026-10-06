@@ -1,6 +1,6 @@
 {
   "name": "inertia-native",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "description": "Drive Inertia.js navigation and bridge components from Hotwire Native (iOS & Android)",
   "type": "module",
   "types": "./src/index.d.ts",
