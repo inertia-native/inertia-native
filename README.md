@@ -16,6 +16,8 @@ navigates exactly as usual.
 
 - **Framework-agnostic core** (`.`) — peer-depends on `@inertiajs/core`.
 - **React bindings** (`./react`) — optional, peer-depends on `react`.
+- **Vue bindings** (`./vue`) — optional, peer-depends on `vue`.
+- **Svelte bindings** (`./svelte`) — optional, peer-depends on `svelte`.
 
 Docs: [inertia-native.dev](https://inertia-native.dev). Formerly published as
 `inertia-hotwire-native`. A community project, not affiliated with the
@@ -103,10 +105,64 @@ useEffect(() => {
 }, [supported, title, send, restored])
 ```
 
+### Bridge components (Vue)
+
+The Vue entry exposes the same `useBridgeComponent(name)` composable.
+`supported` and `restored` are `Ref`s, so unwrap them with `.value` (or use
+them in a template); `send` has the same signature.
+
+```vue
+<script setup>
+import { useBridgeComponent } from 'inertia-native/vue'
+
+const props = defineProps(['items'])
+const { supported, send } = useBridgeComponent('menu')
+
+function open() {
+  send('connect', { items: props.items }, (message) => onSelect(message.data.index))
+}
+</script>
+
+<template>
+  <button v-if="supported" @click="open">Open menu</button>
+</template>
+```
+
+To send `connect` again after `native:restore`, watch `restored` alongside the
+other sources of the watcher that sends it.
+
+### Bridge components (Svelte)
+
+The Svelte entry exposes `useBridgeComponent(name)` too. `supported` and
+`restored` are readable stores (subscribe with `$supported`, `$restored`);
+`send` has the same signature. Call it during component initialization — it
+registers an `onDestroy` cleanup.
+
+```svelte
+<script>
+  import { useBridgeComponent } from 'inertia-native/svelte'
+
+  export let items
+  const { supported, send } = useBridgeComponent('menu')
+
+  const open = () =>
+    send('connect', { items }, (message) => onSelect(message.data.index))
+</script>
+
+{#if $supported}
+  <button on:click={open}>Open menu</button>
+{/if}
+```
+
+To send `connect` again after `native:restore`, reference `$restored` in the
+reactive statement that sends it.
+
 ## Requirements
 
 - `@inertiajs/core` >= 2.0 (works with the v3 line)
 - `react` >= 18 (only for the `./react` entry)
+- `vue` >= 3.0 (only for the `./vue` entry)
+- `svelte` >= 4.0 (only for the `./svelte` entry)
 
 ## License
 

@@ -14,6 +14,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Vue bindings (`inertia-native/vue`): `useBridgeComponent(name)` composable,
+  with `supported` and `restored` as `Ref`s.
+- Svelte bindings (`inertia-native/svelte`): `useBridgeComponent(name)` helper,
+  with `supported` and `restored` as readable stores.
 - `useBridgeComponent` returns `restored`, bumped on `native:restore` (Android,
   back from a native screen), so a component can send `connect` again.
 - `proposeFormRedirects` option: after a form lands on another URL, propose it

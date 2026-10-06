@@ -12,6 +12,14 @@
     "./react": {
       "types": "./src/react.d.ts",
       "import": "./src/react.js"
+    },
+    "./vue": {
+      "types": "./src/vue.d.ts",
+      "import": "./src/vue.js"
+    },
+    "./svelte": {
+      "types": "./src/svelte.d.ts",
+      "import": "./src/svelte.js"
     }
   },
   "files": [
@@ -34,7 +42,9 @@
     "ios",
     "android",
     "rails",
-    "react"
+    "react",
+    "vue",
+    "svelte"
   ],
   "license": "MIT",
   "repository": {
@@ -48,17 +58,28 @@
   },
   "peerDependencies": {
     "@inertiajs/core": ">=2.0.0",
-    "react": ">=18.0.0"
+    "react": ">=18.0.0",
+    "svelte": ">=4.0.0",
+    "vue": ">=3.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
+      "optional": true
+    },
+    "svelte": {
+      "optional": true
+    },
+    "vue": {
       "optional": true
     }
   },
   "devDependencies": {
     "@inertiajs/core": "^3.0.0",
+    "jsdom": "^29.1.1",
     "oxlint": "^1.0.0",
+    "svelte": "^5.0.0",
     "typescript": "^5.0.0",
-    "vitest": "^3.0.0"
+    "vitest": "^3.0.0",
+    "vue": "^3.0.0"
   }
 }
