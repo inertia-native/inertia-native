@@ -37,8 +37,8 @@ export interface TurboNativeAdapter {
 
 /** The `window.Turbo` shim this package installs for `turbo.js` to drive. */
 export interface TurboShim {
-  /** @internal Marks the shim as ours so `initHotwireNative()` stays idempotent. */
-  readonly __inertiaHotwireNative?: true
+  /** @internal Marks the shim as ours so `initInertiaNative()` stays idempotent. */
+  readonly __inertiaNative?: true
   session: unknown
   navigator: unknown
   registerAdapter(adapter: TurboNativeAdapter): void
@@ -77,7 +77,7 @@ export interface WebkitMessageHandler {
 
 declare global {
   interface Window {
-    /** Installed by `initHotwireNative()`; driven by Hotwire Native's `turbo.js`. */
+    /** Installed by `initInertiaNative()`; driven by Hotwire Native's `turbo.js`. */
     Turbo?: TurboShim
     /** Web bridge container. Feature-detect support via `web.supportsComponent`. */
     HotwireNative?: { web: WebBridge }

@@ -11,7 +11,7 @@ describe('error handling', () => {
   beforeAll(async () => {
     h = await setup()
     h.router.visit = (url, opts = {}) => visitCalls.push({ url: String(url), opts })
-    h.initHotwireNative({ debug: false })
+    h.initInertiaNative({ debug: false })
     h.loadFixture('turbo.js')
     await h.tick()
   })

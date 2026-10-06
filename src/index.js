@@ -6,22 +6,22 @@ import { enableDebug, log } from './log.js'
 
 // Installs the `window.Turbo` shim that Hotwire Native's injected turbo.js
 // drives. Inert in a regular browser (nothing registers an adapter).
-export function initHotwireNative({ debug = false, proposeFormRedirects = false } = {}) {
+export function initInertiaNative({ debug = false, proposeFormRedirects = false } = {}) {
   if (debug) enableDebug()
 
   // Idempotent: a repeat call (HMR, double import, StrictMode) would register a
   // second driver and report every Inertia event to native twice.
-  if (window.Turbo?.__inertiaHotwireNative) {
-    log('native', 'initHotwireNative — already installed, skipping')
+  if (window.Turbo?.__inertiaNative) {
+    log('native', 'initInertiaNative — already installed, skipping')
     return
   }
 
-  log('native', 'initHotwireNative — installing window.Turbo shim')
+  log('native', 'initInertiaNative — installing window.Turbo shim')
 
   const session = new Session()
 
   window.Turbo = {
-    __inertiaHotwireNative: true,
+    __inertiaNative: true,
     session,
     navigator: new Navigator(session),
 
@@ -44,3 +44,6 @@ export function initHotwireNative({ debug = false, proposeFormRedirects = false 
     document.dispatchEvent(new Event('turbo:load'))
   }, 0)
 }
+
+/** @deprecated Renamed to `initInertiaNative`. */
+export const initHotwireNative = initInertiaNative

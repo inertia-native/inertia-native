@@ -14,7 +14,7 @@ describe('bridge handshake', () => {
     // Native injects bridge.js first (installs window.nativeBridge, listens for
     // web-bridge:ready), then our bundle installs the web side.
     h.loadFixture('bridge.js')
-    h.initHotwireNative({ debug: false })
+    h.initInertiaNative({ debug: false })
     web = window.HotwireNative.web
     // Native registers the components it supports.
     globalThis.nativeBridge.register(['form', 'menu', 'overflow-menu'])

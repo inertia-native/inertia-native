@@ -10,7 +10,7 @@ describe('form redirects', () => {
   beforeAll(async () => {
     h = await setup({ url: 'http://localhost:3000/posts/new' })
     h.router.visit = () => {}
-    h.initHotwireNative({ debug: false, proposeFormRedirects: true })
+    h.initInertiaNative({ debug: false, proposeFormRedirects: true })
     h.loadFixture('turbo.js')
     await h.tick()
   })
@@ -55,7 +55,7 @@ describe('form redirects (default)', () => {
   it('keeps the result in the web view', async () => {
     const h = await setup({ url: 'http://localhost:3000/posts/new' })
     h.router.visit = () => {}
-    h.initHotwireNative({ debug: false })
+    h.initInertiaNative({ debug: false })
     h.loadFixture('turbo.js')
     await h.tick()
 

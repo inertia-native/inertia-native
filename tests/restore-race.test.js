@@ -17,7 +17,7 @@ describe('restore interrupted by a new visit', () => {
       globalThis.location = new URL('http://localhost:3000/')
       setTimeout(() => h.winEvents.dispatchEvent(new Event('popstate')), 30)
     }
-    h.initHotwireNative({ debug: false })
+    h.initInertiaNative({ debug: false })
     h.loadFixture('turbo.js')
     await h.tick()
   })
