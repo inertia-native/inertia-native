@@ -22,3 +22,16 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+
+  # The lowest @inertiajs/core the peer range allows.
+  min-inertia:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save @inertiajs/core@3.0.0
+      - run: npm test

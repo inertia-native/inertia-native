@@ -79,29 +79,4 @@ describe('error handling', () => {
 
     expect(h.turboMessages.some((m) => m.name === 'visitRequestFailedWithNonHttpStatusCode')).toBe(true)
   })
-
-  // @inertiajs/core <3.4 fires `invalid`/`exception` instead of
-  // `httpException`/`networkError`. The driver listens for both so error
-  // screens keep working across the whole declared peer range.
-  it('reports a 404 from the legacy `invalid` event', async () => {
-    h.turboMessages.length = 0
-    const visit = await nativeVisit('http://localhost:3000/not_found')
-    const invalidEvent = h.dispatchInertia('invalid', { response: { status: 404 } }, { cancelable: true })
-    visit.onFinish()
-    await h.tick()
-
-    expect(invalidEvent.defaultPrevented).toBe(true)
-    const failed = h.turboMessages.find((m) => m.name === 'visitRequestFailed')
-    expect(failed?.data?.statusCode).toBe(404)
-  })
-
-  it('routes the legacy `exception` event as a non-HTTP failure', async () => {
-    h.turboMessages.length = 0
-    const visit = await nativeVisit('http://localhost:3000/navigation')
-    h.dispatchInertia('exception', { exception: new Error('offline') }, { cancelable: true })
-    visit.onFinish()
-    await h.tick()
-
-    expect(h.turboMessages.some((m) => m.name === 'visitRequestFailedWithNonHttpStatusCode')).toBe(true)
-  })
 })

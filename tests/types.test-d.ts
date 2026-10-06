@@ -4,8 +4,6 @@
 // silently drift from the public API.
 import { initInertiaNative } from '../src/index.js'
 import type { BridgeMessage, InitInertiaNativeOptions } from '../src/index.js'
-import { initHotwireNative } from '../src/index.js'
-import type { InitHotwireNativeOptions } from '../src/index.js'
 import { useBridgeComponent } from '../src/react.js'
 import { useBridgeComponent as useBridgeComponentVue } from '../src/vue.js'
 import { useBridgeComponent as useBridgeComponentSvelte } from '../src/svelte.js'
@@ -25,11 +23,6 @@ initInertiaNative({ debug: 'yes' })
 initInertiaNative({ nope: true })
 
 const opts: InitInertiaNativeOptions = { debug: false }
-
-// Deprecated aliases keep compiling.
-initHotwireNative({ debug: true })
-const legacyOpts: InitHotwireNativeOptions = opts
-void legacyOpts
 void opts
 
 // --- global augmentation (README feature-detection pattern) ---

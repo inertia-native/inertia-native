@@ -25,10 +25,4 @@ export interface InitInertiaNativeOptions {
  */
 export function initInertiaNative(options?: InitInertiaNativeOptions): void
 
-/** @deprecated Renamed to `initInertiaNative`. */
-export function initHotwireNative(options?: InitInertiaNativeOptions): void
-
-/** @deprecated Renamed to `InitInertiaNativeOptions`. */
-export type InitHotwireNativeOptions = InitInertiaNativeOptions
-
 export type { BridgeMessage }

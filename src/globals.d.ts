@@ -11,7 +11,7 @@ export interface BridgeMessage {
   data: Record<string, unknown>
 }
 
-/** How a proposed visit should be presented natively. */
+/** @internal How a proposed visit should be presented natively. */
 export interface VisitProposalOptions {
   action: 'advance' | 'replace' | 'restore'
 }
@@ -20,6 +20,8 @@ export interface VisitProposalOptions {
  * The native adapter injected by Hotwire Native's `turbo.js`. Our driver calls
  * these to report an Inertia visit's progress; `visit` is the package's own
  * Visit instance and is opaque to callers.
+ *
+ * @internal Mirrors Hotwire Native's turbo.js; not part of the public API.
  */
 export interface TurboNativeAdapter {
   visitProposedToLocation(location: URL, options: VisitProposalOptions): void
@@ -35,7 +37,11 @@ export interface TurboNativeAdapter {
   pageInvalidated(): void
 }
 
-/** The `window.Turbo` shim this package installs for `turbo.js` to drive. */
+/**
+ * The `window.Turbo` shim this package installs for `turbo.js` to drive.
+ *
+ * @internal Not part of the public API; may change in a minor release.
+ */
 export interface TurboShim {
   /** @internal Marks the shim as ours so `initInertiaNative()` stays idempotent. */
   readonly __inertiaNative?: true
@@ -45,7 +51,7 @@ export interface TurboShim {
   registerDriver(Driver: new (session: unknown) => unknown): void
 }
 
-/** The native bridge adapter (`window.nativeBridge`) that connects to the web bridge. */
+/** @internal The native bridge adapter (`window.nativeBridge`) that connects to the web bridge. */
 export interface NativeBridgeAdapter {
   platform: string
   supportedComponents: string[]

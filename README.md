@@ -159,7 +159,7 @@ reactive statement that sends it.
 
 ## Requirements
 
-- `@inertiajs/core` >= 2.0 (works with the v3 line)
+- `@inertiajs/core` >= 3.0
 - `react` >= 18 (only for the `./react` entry)
 - `vue` >= 3.0 (only for the `./vue` entry)
 - `svelte` >= 4.0 (only for the `./svelte` entry)
