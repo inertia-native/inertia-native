@@ -25,10 +25,22 @@ describe('error handling', () => {
     return callbacks
   }
 
+  // Inertia passes the same object to the visit's callback and then to the
+  // router event; `from` is the visit whose request failed.
+  function httpException(response, from) {
+    from?.onHttpException(response)
+    return h.dispatchInertia('httpException', { response }, { cancelable: true })
+  }
+
+  function networkError(error, from) {
+    from?.onNetworkError(error)
+    return h.dispatchInertia('networkError', { error }, { cancelable: true })
+  }
+
   it('reports a 404 with its status code and suppresses the Inertia overlay', async () => {
     h.turboMessages.length = 0
     const visit = await nativeVisit('http://localhost:3000/not_found')
-    const httpEvent = h.dispatchInertia('httpException', { response: { status: 404 } }, { cancelable: true })
+    const httpEvent = httpException({ status: 404 }, visit)
     visit.onFinish()
     await h.tick()
 
@@ -40,11 +52,7 @@ describe('error handling', () => {
   it('invalidates the page on a 2xx response without X-Inertia', async () => {
     h.turboMessages.length = 0
     const visit = await nativeVisit('http://localhost:3000/legacy')
-    const httpEvent = h.dispatchInertia(
-      'httpException',
-      { response: { status: 200, headers: {} } },
-      { cancelable: true }
-    )
+    const httpEvent = httpException({ status: 200, headers: {} }, visit)
     visit.onFinish()
     await h.tick()
 
@@ -59,11 +67,7 @@ describe('error handling', () => {
   it('leaves a non-Inertia response to a form alone', async () => {
     window.Turbo.navigator.stop() // no native visit in flight
     h.turboMessages.length = 0
-    const httpEvent = h.dispatchInertia(
-      'httpException',
-      { response: { status: 200, headers: {} } },
-      { cancelable: true }
-    )
+    const httpEvent = httpException({ status: 200, headers: {} }, null)
     await h.tick()
 
     expect(httpEvent.defaultPrevented).toBe(false)
@@ -73,10 +77,26 @@ describe('error handling', () => {
   it('routes a network failure as a non-HTTP failure', async () => {
     h.turboMessages.length = 0
     const visit = await nativeVisit('http://localhost:3000/navigation')
-    h.dispatchInertia('networkError', { error: new Error('offline') }, { cancelable: true })
+    networkError(new Error('offline'), visit)
     visit.onFinish()
     await h.tick()
 
     expect(h.turboMessages.some((m) => m.name === 'visitRequestFailedWithNonHttpStatusCode')).toBe(true)
+  })
+
+  // A poll or deferred-props reload can fail while a native visit is in
+  // flight; that failure is not the native visit's to report.
+  it('ignores an async visit failing during a native visit', async () => {
+    const visit = await nativeVisit('http://localhost:3000/slow')
+    h.turboMessages.length = 0
+    const pollEvent = httpException({ status: 500 }, null)
+    networkError(new Error('offline'), null)
+    await h.tick()
+
+    expect(pollEvent.defaultPrevented).toBe(false) // Inertia's own handling stays
+    expect(h.turboMessages.map((m) => m.name)).toEqual([])
+
+    visit.onFinish()
+    expect(h.turboMessages.map((m) => m.name)).toEqual(['visitRequestFinished'])
   })
 })

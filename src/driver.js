@@ -37,6 +37,10 @@ export default class InertiaDriver {
   #locations = new WeakMap()
   #proposeFormRedirects
   #formStartLocation = null
+  // The response (or network error) the native visit's own request failed
+  // with. Inertia hands the same object to the per-visit callback and then to
+  // the router event, so identity tells it apart from an async visit's.
+  #nativeFailure = null
 
   constructor(session, { proposeFormRedirects = false } = {}) {
     this.session = session
@@ -72,9 +76,7 @@ export default class InertiaDriver {
     })
   }
 
-  #handOffLocation(location) {
-    const visit = this.#activeVisit
-
+  #handOffLocation(location, visit) {
     if (visit) {
       if (location.origin !== window.location.origin) {
         // As turbo.js reports a cross-origin redirect: native refetches the
@@ -97,6 +99,12 @@ export default class InertiaDriver {
       log('inertia', 'location visit → visitProposed', { location: location.href })
       this.session.visitProposedToLocation(location, { action: 'advance' })
     }
+  }
+
+  // The native visit, if `failure` came from its own request rather than from an
+  // async visit (a poll, deferred props) running alongside.
+  #visitFailedWith(failure) {
+    return failure && failure === this.#nativeFailure ? this.#activeVisit : null
   }
 
   // A validation error redirects back, so only a changed URL is a result page.
@@ -174,8 +182,15 @@ export default class InertiaDriver {
           })
         )
       },
+      onHttpException: (response) => {
+        if (isActive()) this.#nativeFailure = response
+      },
+      onNetworkError: (error) => {
+        if (isActive()) this.#nativeFailure = error
+      },
       onFinish: () => {
         if (!isActive()) return
+        this.#nativeFailure = null
         log('inertia', 'finish → visitRequestFinished', { id: visit.identifier })
         this.adapter?.visitRequestFinished(visit)
         this.#activeVisit = null
@@ -330,14 +345,15 @@ export default class InertiaDriver {
 
     const onHttpException = (event) => {
       const response = event.detail.response
+      const visit = this.#visitFailedWith(response)
       const location = response?.headers && this.#locations.get(response.headers)
       if (location) {
         event.preventDefault()
-        this.#handOffLocation(location)
+        this.#handOffLocation(location, visit)
         return
       }
 
-      if (!this.#activeVisit) return
+      if (!visit) return
       const status = response?.status ?? 0
       event.preventDefault()
 
@@ -351,15 +367,16 @@ export default class InertiaDriver {
       }
 
       log('inertia', 'httpException → visitRequestFailedWithStatusCode', { status })
-      this.adapter?.visitRequestFailedWithStatusCode(this.#activeVisit, status)
+      this.adapter?.visitRequestFailedWithStatusCode(visit, status)
     }
     router.on('httpException', onHttpException)
 
     // Status 0 routes it as a non-HTTP failure.
-    const onNetworkError = () => {
-      if (!this.#activeVisit) return
+    const onNetworkError = (event) => {
+      const visit = this.#visitFailedWith(event.detail.error)
+      if (!visit) return
       log('inertia', 'networkError → visitRequestFailedWithStatusCode(0)')
-      this.adapter?.visitRequestFailedWithStatusCode(this.#activeVisit, 0)
+      this.adapter?.visitRequestFailedWithStatusCode(visit, 0)
     }
     router.on('networkError', onNetworkError)
 
