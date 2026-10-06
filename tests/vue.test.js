@@ -82,6 +82,19 @@ describe('vue useBridgeComponent', () => {
     expect(called).toBe(false)
   })
 
+  it('bumps restored on native:restore until unmount', () => {
+    connect(['button'])
+    const { api, unmount } = mount('button')
+    expect(api.restored.value).toBe(0)
+
+    document.dispatchEvent(new Event('native:restore'))
+    expect(api.restored.value).toBe(1)
+
+    unmount()
+    document.dispatchEvent(new Event('native:restore'))
+    expect(api.restored.value).toBe(1)
+  })
+
   it('stops observing support changes after unmount', async () => {
     const { web, adapter } = connect([]) // menu not supported yet
     const { api, unmount } = mount('menu')

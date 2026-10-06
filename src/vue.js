@@ -5,6 +5,12 @@ import { onMounted, onUnmounted, ref } from 'vue'
 // mount; `send` is stable.
 export function useBridgeComponent(component) {
   const supported = ref(!!window.HotwireNative?.web?.supportsComponent(component))
+  // Bumped on native:restore (Android, back from a native screen); watch it to
+  // send `connect` again.
+  const restored = ref(0)
+  const onRestore = () => {
+    restored.value += 1
+  }
   const sentIds = []
   let observer = null
 
@@ -21,10 +27,12 @@ export function useBridgeComponent(component) {
       attributes: true,
       attributeFilter: ['data-bridge-components'],
     })
+    document.addEventListener('native:restore', onRestore)
   })
 
   onUnmounted(() => {
     observer?.disconnect()
+    document.removeEventListener('native:restore', onRestore)
     const web = window.HotwireNative?.web
     sentIds.forEach((id) => web?.removeCallback(id))
     web?.removePendingMessagesFor(component)
@@ -43,5 +51,5 @@ export function useBridgeComponent(component) {
     return id
   }
 
-  return { supported, send }
+  return { supported, send, restored }
 }

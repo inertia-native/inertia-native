@@ -1,4 +1,4 @@
-// Public types for the Vue entry (`inertia-hotwire-native/vue`).
+// Public types for the Vue entry (`inertia-native/vue`).
 import type { Ref } from 'vue'
 import type { BridgeMessage } from './globals.js'
 
@@ -16,6 +16,12 @@ export interface BridgeComponent {
     data?: Record<string, unknown>,
     callback?: (message: BridgeMessage) => void,
   ): string | null
+  /**
+   * Bumped each time the web view returns from a native screen
+   * (`native:restore`). Watch it to send `connect` again so native redraws
+   * the component.
+   */
+  restored: Ref<number>
 }
 
 /**

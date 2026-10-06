@@ -85,6 +85,20 @@ describe('svelte useBridgeComponent', () => {
     expect(called).toBe(false)
   })
 
+  it('bumps restored on native:restore while subscribed', () => {
+    connect(['button'])
+    const { restored } = useBridgeComponent('button')
+    const sub = live(restored)
+    expect(sub.get()).toBe(0)
+
+    document.dispatchEvent(new Event('native:restore'))
+    expect(sub.get()).toBe(1)
+
+    sub.unsubscribe()
+    document.dispatchEvent(new Event('native:restore'))
+    expect(sub.get()).toBe(1)
+  })
+
   it('stops observing support changes after the last unsubscribe', async () => {
     const { web, adapter } = connect([])
     const { supported } = useBridgeComponent('menu')

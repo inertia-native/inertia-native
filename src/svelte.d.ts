@@ -1,4 +1,4 @@
-// Public types for the Svelte entry (`inertia-hotwire-native/svelte`).
+// Public types for the Svelte entry (`inertia-native/svelte`).
 import type { Readable } from 'svelte/store'
 import type { BridgeMessage } from './globals.js'
 
@@ -16,6 +16,12 @@ export interface BridgeComponent {
     data?: Record<string, unknown>,
     callback?: (message: BridgeMessage) => void,
   ): string | null
+  /**
+   * Bumped each time the web view returns from a native screen
+   * (`native:restore`). Reference `$restored` where `connect` is sent to send
+   * it again so native redraws the component.
+   */
+  restored: Readable<number>
 }
 
 /**

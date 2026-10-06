@@ -48,6 +48,8 @@ menu.send()
 const vueMenu = useBridgeComponentVue('menu')
 const vueSupported: Ref<boolean> = vueMenu.supported
 void vueSupported
+const vueRestored: Ref<number> = vueMenu.restored
+void vueRestored
 const vueId: string | null = vueMenu.send('connect', { title: 'x' }, (m: BridgeMessage) => m.id)
 void vueId
 vueMenu.send('event') // data/callback optional
@@ -59,6 +61,8 @@ vueMenu.send()
 const svelteMenu = useBridgeComponentSvelte('menu')
 const svelteSupported: Readable<boolean> = svelteMenu.supported
 void svelteSupported
+const svelteRestored: Readable<number> = svelteMenu.restored
+void svelteRestored
 const svelteId: string | null = svelteMenu.send('connect', { title: 'x' }, (m: BridgeMessage) => m.id)
 void svelteId
 svelteMenu.send('event') // data/callback optional

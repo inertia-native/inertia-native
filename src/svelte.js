@@ -24,6 +24,15 @@ export function useBridgeComponent(component) {
     }
   )
 
+  // Bumped on native:restore (Android, back from a native screen); reference
+  // it where `connect` is sent to send it again.
+  const restored = readable(0, (set) => {
+    let count = 0
+    const onRestore = () => set(++count)
+    document.addEventListener('native:restore', onRestore)
+    return () => document.removeEventListener('native:restore', onRestore)
+  })
+
   onDestroy(() => {
     const web = window.HotwireNative?.web
     sentIds.forEach((id) => web?.removeCallback(id))
@@ -43,5 +52,5 @@ export function useBridgeComponent(component) {
     return id
   }
 
-  return { supported, send }
+  return { supported, send, restored }
 }
