@@ -88,6 +88,21 @@ describe('location visits', () => {
     expect(proposed?.data?.location).toBe('https://maps.example.com/place')
   })
 
+  // A form answered with `inertia_location '/recede_historical_location'` (the
+  // server's recede_or_redirect_to): native's built-in rule for the path pops
+  // the screen or dismisses the modal.
+  it('proposes a historical location after a form', async () => {
+    window.Turbo.navigator.stop()
+    h.turboMessages.length = 0
+    const event = respond('/recede_historical_location')
+    await h.tick()
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(messages()).not.toContain('pageInvalidated')
+    const proposed = h.turboMessages.find((m) => m.name === 'visitProposed')
+    expect(proposed?.data?.location).toBe('http://localhost:3000/recede_historical_location')
+  })
+
   it('invalidates the current page outside a native visit', async () => {
     window.Turbo.navigator.stop()
     h.turboMessages.length = 0
