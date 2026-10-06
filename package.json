@@ -1,5 +1,5 @@
 {
-  "name": "inertia-hotwire-native",
+  "name": "inertia-native",
   "version": "0.1.0-beta.1",
   "description": "Drive Inertia.js navigation and bridge components from Hotwire Native (iOS & Android)",
   "type": "module",
@@ -39,10 +39,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zumkorn/inertia-hotwire-native.git"
+    "url": "git+https://github.com/inertia-native/inertia-native.git"
   },
-  "homepage": "https://github.com/zumkorn/inertia-hotwire-native",
-  "bugs": "https://github.com/zumkorn/inertia-hotwire-native/issues",
+  "homepage": "https://inertia-native.dev",
+  "bugs": "https://github.com/inertia-native/inertia-native/issues",
   "engines": {
     "node": ">=20"
   },
