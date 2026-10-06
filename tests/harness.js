@@ -9,7 +9,7 @@ const fixturesDir = fileURLToPath(new URL('./fixtures/', import.meta.url))
 export async function setup({ url = 'http://localhost:3000/' } = {}) {
   // `window` is globalThis here, so the shim installed by a previous scenario
   // in this file persists. Clear it so each setup() starts clean — otherwise
-  // initHotwireNative's idempotency guard would skip reinstalling on a fresh
+  // initInertiaNative's idempotency guard would skip reinstalling on a fresh
   // document, leaving the new scenario with a stale, dead driver.
   delete globalThis.Turbo
   delete globalThis.HotwireNative
@@ -55,7 +55,7 @@ export async function setup({ url = 'http://localhost:3000/' } = {}) {
 
   // Import after globals exist.
   const { router } = await import('@inertiajs/core')
-  const { initHotwireNative } = await import('../src/index.js')
+  const { initInertiaNative } = await import('../src/index.js')
 
   function loadFixture(name) {
     const src = fs.readFileSync(`${fixturesDir}${name}`, 'utf8')
@@ -72,7 +72,7 @@ export async function setup({ url = 'http://localhost:3000/' } = {}) {
     turboMessages,
     bridgeMessages,
     router,
-    initHotwireNative,
+    initInertiaNative,
     loadFixture,
     dispatchInertia,
     winEvents,

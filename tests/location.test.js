@@ -17,7 +17,7 @@ describe('location visits', () => {
     http.onError = (handler) => {
       onError = handler
     }
-    h.initHotwireNative({ debug: false })
+    h.initInertiaNative({ debug: false })
 
     // In a browser no adapter connects, so Inertia keeps the location visit.
     headerKeptWithoutAdapter = 'x-inertia-location' in locationResponse('/elsewhere').headers

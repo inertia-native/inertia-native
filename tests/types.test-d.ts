@@ -2,32 +2,39 @@
 // file is type-checked by `npm run typecheck` (tsc). `@ts-expect-error` lines
 // fail the build if the expected type error stops happening, so the .d.ts can't
 // silently drift from the public API.
+import { initInertiaNative } from '../src/index.js'
+import type { BridgeMessage, InitInertiaNativeOptions } from '../src/index.js'
 import { initHotwireNative } from '../src/index.js'
-import type { BridgeMessage, InitHotwireNativeOptions } from '../src/index.js'
+import type { InitHotwireNativeOptions } from '../src/index.js'
 import { useBridgeComponent } from '../src/react.js'
 import { useBridgeComponent as useBridgeComponentVue } from '../src/vue.js'
 import { useBridgeComponent as useBridgeComponentSvelte } from '../src/svelte.js'
 import type { Ref } from 'vue'
 import type { Readable } from 'svelte/store'
 
-// --- initHotwireNative ---
-initHotwireNative()
-initHotwireNative({})
-initHotwireNative({ debug: true })
-initHotwireNative({ proposeFormRedirects: true })
+// --- initInertiaNative ---
+initInertiaNative()
+initInertiaNative({})
+initInertiaNative({ debug: true })
+initInertiaNative({ proposeFormRedirects: true })
 
 // @ts-expect-error debug must be a boolean
-initHotwireNative({ debug: 'yes' })
+initInertiaNative({ debug: 'yes' })
 
 // @ts-expect-error unknown option rejected
-initHotwireNative({ nope: true })
+initInertiaNative({ nope: true })
 
-const opts: InitHotwireNativeOptions = { debug: false }
+const opts: InitInertiaNativeOptions = { debug: false }
+
+// Deprecated aliases keep compiling.
+initHotwireNative({ debug: true })
+const legacyOpts: InitHotwireNativeOptions = opts
+void legacyOpts
 void opts
 
 // --- global augmentation (README feature-detection pattern) ---
-const isHotwireNative: boolean = !!window.webkit?.messageHandlers?.turbo
-void isHotwireNative
+const isNativeApp: boolean = !!window.webkit?.messageHandlers?.turbo
+void isNativeApp
 const supportsForm: boolean | undefined = window.HotwireNative?.web.supportsComponent('form')
 void supportsForm
 

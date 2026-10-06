@@ -30,7 +30,7 @@ describe('restore', () => {
       globalThis.history.state = landsOnInertiaEntry ? { page: { url: landsOn } } : null
       setTimeout(() => h.winEvents.dispatchEvent(new Event('popstate')), 5)
     }
-    h.initHotwireNative({ debug: false })
+    h.initInertiaNative({ debug: false })
     h.loadFixture('turbo.js')
     await h.tick()
   })

@@ -34,15 +34,15 @@ npm add inertia-native@beta
 
 ## Usage
 
-Call `initHotwireNative()` once, before `createInertiaApp`, in your Inertia
+Call `initInertiaNative()` once, before `createInertiaApp`, in your Inertia
 entrypoint:
 
 ```js
 import { createInertiaApp } from '@inertiajs/react'
-import { initHotwireNative } from 'inertia-native'
+import { initInertiaNative } from 'inertia-native'
 
-const isHotwireNative = !!window.webkit?.messageHandlers?.turbo
-initHotwireNative({ debug: import.meta.env.DEV || isHotwireNative })
+const isNativeApp = !!window.webkit?.messageHandlers?.turbo
+initInertiaNative({ debug: import.meta.env.DEV || isNativeApp })
 
 createInertiaApp({ /* ... */ })
 ```
@@ -59,7 +59,7 @@ dismissing a modal to show the result in the main stack. Validation errors
 redirect back to the form's own URL and are not proposed.
 
 ```js
-initHotwireNative({ proposeFormRedirects: true })
+initInertiaNative({ proposeFormRedirects: true })
 ```
 
 ### Bridge components (React)

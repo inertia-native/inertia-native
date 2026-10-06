@@ -3,7 +3,7 @@
 // (so `window.Turbo`, `window.HotwireNative`, `window.webkit` are typed).
 import type { BridgeMessage } from './globals.js'
 
-export interface InitHotwireNativeOptions {
+export interface InitInertiaNativeOptions {
   /**
    * Log the web↔native message flow to the webview console (attach Safari Web
    * Inspector to see it). Off by default.
@@ -23,6 +23,12 @@ export interface InitHotwireNativeOptions {
  * drives. Call once, before `createInertiaApp`. In a regular browser it stays
  * inert and Inertia navigates as usual.
  */
-export function initHotwireNative(options?: InitHotwireNativeOptions): void
+export function initInertiaNative(options?: InitInertiaNativeOptions): void
+
+/** @deprecated Renamed to `initInertiaNative`. */
+export function initHotwireNative(options?: InitInertiaNativeOptions): void
+
+/** @deprecated Renamed to `InitInertiaNativeOptions`. */
+export type InitHotwireNativeOptions = InitInertiaNativeOptions
 
 export type { BridgeMessage }
