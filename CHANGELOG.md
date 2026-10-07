@@ -16,6 +16,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `TurboShim`, `TurboNativeAdapter`, `NativeBridgeAdapter` and
   `VisitProposalOptions` are marked internal and may change in minor releases.
 
+### Fixed
+
+- An async visit (a poll, deferred props) that fails or gets a location visit
+  while a native visit is in flight no longer fails that native visit. Errors
+  are matched to the native visit through its own `onHttpException` /
+  `onNetworkError` callbacks.
+
 ## [0.1.0-beta.2] — 2026-10-06
 
 ### Changed
