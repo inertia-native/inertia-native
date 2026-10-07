@@ -25,11 +25,8 @@ Inertia.js team.
 
 ## Install
 
-> **Beta.** This is a pre-1.0 release published under the `beta` tag; the API
-> may still change.
-
 ```bash
-npm add inertia-native@beta
+npm add inertia-native
 ```
 
 ## Usage
