@@ -19,8 +19,7 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        // The server the app loads. Debug builds rewrite a localhost URL to
-        // 10.0.2.2 so the emulator reaches your machine (see Urls.kt).
+        // The server the app loads. For localhost, see Urls.kt.
         buildConfigField("String", "BASE_URL", "\"__BASE_URL__\"")
     }
 

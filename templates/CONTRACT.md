@@ -54,8 +54,10 @@ Copies keep file modes: `gradlew` must stay executable.
   `.../android_v1.json` (Android). The server packages serve these routes.
 - Local development over plain HTTP must work out of the box:
   - iOS simulator: `localhost` reaches the Mac.
-  - Android emulator: in debug builds, a `localhost`/`127.0.0.1` base URL is
-    rewritten to `10.0.2.2` at runtime, and cleartext is allowed for it.
+  - Android emulator or USB phone: the base URL is loaded as is, so
+    `localhost` must be forwarded with `adb reverse`; `inertia-native run
+    android` does that for the app's port and the Vite dev server's. Debug
+    builds allow cleartext to `localhost`, `127.0.0.1` and `10.0.2.2`.
 - Register the bridge components that exist on both platforms.
 - The user agent is Hotwire Native's default (`Hotwire Native iOS; ...` /
   `Hotwire Native Android; ...`); server packages detect the app with it.

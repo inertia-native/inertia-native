@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Debug builds only. Allows plain HTTP to a dev server on your machine:
-  10.0.2.2 is the host as seen from the emulator. Release builds keep
-  Android's default (HTTPS only). To test on a phone over your LAN, add
-  your machine's IP address here.
+  Debug builds only. Allows plain HTTP to a dev server on your machine,
+  reached as localhost through `adb reverse` (see Urls.kt) or as 10.0.2.2
+  from the emulator. Release builds keep Android's default (HTTPS only).
+  To test on a phone over your LAN, add your machine's IP address here.
 -->
 <network-security-config>
     <domain-config cleartextTrafficPermitted="true">

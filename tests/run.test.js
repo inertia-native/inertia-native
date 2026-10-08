@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { main } from '../bin/cli.mjs'
-import { bakedUrl, findAndroidSdk, findJdk, parseAdbDevices, pickSimulator } from '../bin/run.mjs'
+import { bakedUrl, findAndroidSdk, findJdk, parseAdbDevices, pickSimulator, reversePorts } from '../bin/run.mjs'
 
 let tmp
 beforeEach(() => {
@@ -80,6 +80,52 @@ it('reads the URL baked into generated shells', async () => {
   await cli(['init', '--skip-install', '--url', 'http://localhost:4567/app'])
   expect(bakedUrl(tmp, 'ios')).toBe('http://localhost:4567/app')
   expect(bakedUrl(tmp, 'android')).toBe('http://localhost:4567/app')
+})
+
+describe('reversePorts', () => {
+  const file = (path, content = '') => {
+    mkdirSync(join(tmp, path, '..'), { recursive: true })
+    writeFileSync(join(tmp, path), content)
+  }
+
+  it('forwards a local app URL port, defaulting to 80/443', () => {
+    expect(reversePorts(tmp, 'http://localhost:3000')).toEqual({ ports: [3000], warning: undefined })
+    expect(reversePorts(tmp, 'http://127.0.0.1')).toEqual({ ports: [80], warning: undefined })
+    expect(reversePorts(tmp, 'https://localhost/app')).toEqual({ ports: [443], warning: undefined })
+  })
+
+  it('leaves remote and 10.0.2.2 URLs alone', () => {
+    expect(reversePorts(tmp, 'https://acme.dev').ports).toEqual([])
+    expect(reversePorts(tmp, 'http://10.0.2.2:8000').ports).toEqual([])
+    expect(reversePorts(tmp, undefined).ports).toEqual([])
+  })
+
+  it("adds Laravel's Vite port: from public/hot, else 5173", () => {
+    file('artisan')
+    expect(reversePorts(tmp, 'http://localhost:8000').ports).toEqual([8000, 5173])
+    file('public/hot', 'http://127.0.0.1:5174')
+    expect(reversePorts(tmp, 'http://localhost:8000').ports).toEqual([8000, 5174])
+    file('public/hot', 'http://localhost:5175\n')
+    expect(reversePorts(tmp, 'http://localhost:8000').ports).toEqual([8000, 5175])
+  })
+
+  it('explains the fix when Vite listens on [::1] only', () => {
+    file('artisan')
+    file('public/hot', 'http://[::1]:5173')
+    const { ports, warning } = reversePorts(tmp, 'http://localhost:8000')
+    expect(ports).toEqual([8000])
+    expect(warning).toContain("Vite listens on [::1]:5173 (IPv6) only")
+    expect(warning).toContain("server: { host: '127.0.0.1' }")
+  })
+
+  it("adds vite_ruby's dev server port (HMR)", () => {
+    file('config/vite.json', JSON.stringify({ all: { port: 3036 }, development: { port: 3037 } }))
+    expect(reversePorts(tmp, 'http://localhost:3000').ports).toEqual([3000, 3037])
+    file('config/vite.json', JSON.stringify({ all: {} }))
+    expect(reversePorts(tmp, 'http://localhost:3000').ports).toEqual([3000, 3036])
+    file('config/vite.json', '{ nope')
+    expect(reversePorts(tmp, 'http://localhost:3000').ports).toEqual([3000])
+  })
 })
 
 describe('findAndroidSdk', () => {

@@ -12,6 +12,8 @@ export const RUN_USAGE = `Usage: npx inertia-native run <ios|android> [options]
 
 Builds the app in ios/ or android/, starts a simulator or emulator if none is
 running, installs the app and launches it. Start your dev server first.
+On Android it runs \`adb reverse\` for the dev server's port (and Vite's), so
+the device reaches localhost on this machine.
 
 Options:
   --device <name>   iOS: simulator name or UDID (default: the booted one, else
@@ -79,7 +81,7 @@ export async function run(argv, io) {
     }
 
     if (platform === 'ios') await runIos(root, flags.device, out)
-    else await runAndroid(root, env, flags, out)
+    else await runAndroid(root, env, flags, url, out, warn)
     return 0
   } catch (error) {
     if (!(error instanceof Failure)) throw error
@@ -141,9 +143,11 @@ async function runIos(root, device, out) {
  * @param {string} root
  * @param {Record<string, string | undefined>} env
  * @param {{ device?: string, avd?: string }} flags
+ * @param {string | undefined} url
  * @param {(line: string) => void} out
+ * @param {(line: string) => void} warn
  */
-async function runAndroid(root, env, flags, out) {
+async function runAndroid(root, env, flags, url, out, warn) {
   const sdk =
     findAndroidSdk(env, root) ??
     fail('Android SDK not found. Install Android Studio and open it once (it downloads the SDK), or set ANDROID_HOME to your SDK.')
@@ -194,12 +198,69 @@ async function runAndroid(root, env, flags, out) {
     fail('Gradle build failed; see the errors above.')
   }
 
+  // The device's localhost is the device; forward the dev server ports to this machine.
+  const { ports, warning } = reversePorts(root, url)
+  const forwarded = ports.filter((port) => capture(adb, ['-s', /** @type {string} */ (serial), 'reverse', `tcp:${port}`, `tcp:${port}`]).ok)
+  if (forwarded.length) out(`✓ adb reverse ${forwarded.map((port) => `tcp:${port}`).join(', ')} (localhost on ${serial} reaches this machine)`)
+  for (const port of ports.filter((port) => !forwarded.includes(port))) warn(`! Couldn't run adb reverse tcp:${port} tcp:${port}`)
+  if (warning) warn(warning)
+
   const appId =
     readFileSync(join(android, 'app', 'build.gradle.kts'), 'utf8').match(/applicationId\s*=\s*"([^"]+)"/)?.[1] ??
     fail("Couldn't find applicationId in android/app/build.gradle.kts.")
   const started = capture(adb, ['-s', /** @type {string} */ (serial), 'shell', 'am', 'start', '-n', `${appId}/${ANDROID_ACTIVITY}`])
   if (!started.ok || /Error/.test(started.stdout)) fail(`Couldn't launch ${appId}: ${(started.stdout + started.stderr).trim()}`)
   out(`✓ Launched ${appId} on ${serial}`)
+}
+
+/**
+ * Ports for `adb reverse`: the app's (when its URL is local) and the Vite dev
+ * server's (laravel-vite-plugin's public/hot, vite_ruby's config/vite.json).
+ * @param {string} root
+ * @param {string | undefined} url
+ * @returns {{ ports: number[], warning?: string }}
+ */
+export function reversePorts(root, url) {
+  const ports = new Set()
+  const local = (/** @type {URL | undefined} */ u) => u && ['localhost', '127.0.0.1'].includes(u.hostname)
+  const port = (/** @type {URL} */ u) => Number(u.port || (u.protocol === 'https:' ? 443 : 80))
+  const app = parseUrl(url)
+  if (app && local(app)) ports.add(port(app))
+
+  let warning
+  const hot = join(root, 'public', 'hot')
+  if (existsSync(hot)) {
+    const vite = parseUrl(readFileSync(hot, 'utf8').trim())
+    if (vite?.hostname === '[::1]') {
+      warning =
+        `! Vite listens on ${vite.host} (IPv6) only, which Android can't reach: the app will show "Error loading page".\n` +
+        "  Add server: { host: '127.0.0.1' } to your vite.config, restart the dev server and run this again."
+    } else if (vite && local(vite)) {
+      ports.add(port(vite))
+    }
+  } else if (existsSync(join(root, 'artisan'))) {
+    ports.add(5173) // Vite's default, for a dev server started later
+  }
+
+  const viteJson = join(root, 'config', 'vite.json')
+  if (existsSync(viteJson)) {
+    try {
+      const config = JSON.parse(readFileSync(viteJson, 'utf8'))
+      ports.add(Number(config.development?.port ?? config.all?.port ?? 3036))
+    } catch {
+      // Not ours to fix; the app still loads through Rails.
+    }
+  }
+  return { ports: [...ports], warning }
+}
+
+/** @param {string | undefined} value */
+function parseUrl(value) {
+  try {
+    return value ? new URL(value) : undefined
+  } catch {
+    return undefined
+  }
 }
 
 /**
