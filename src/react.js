@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { webBridge } from './util.js'
 
 // Generic React wrapper over the web bridge core (window.HotwireNative.web).
 // Returns whether the native app supports `component` and a stable `send`.
 export function useBridgeComponent(component) {
   const [supported, setSupported] = useState(
-    () => !!window.HotwireNative?.web?.supportsComponent(component)
+    () => !!webBridge()?.supportsComponent(component)
   )
   const [restored, setRestored] = useState(0)
   const sentIds = useRef([])
 
   useEffect(() => {
     const check = () =>
-      setSupported(!!window.HotwireNative?.web?.supportsComponent(component))
+      setSupported(!!webBridge()?.supportsComponent(component))
     check()
     // Native support can arrive after mount (async handshake); the bridge writes
     // data-bridge-components on <html>, so observe it and re-check.
@@ -34,7 +35,7 @@ export function useBridgeComponent(component) {
 
   const send = useCallback(
     (event, data = {}, callback) => {
-      const web = window.HotwireNative?.web
+      const web = webBridge()
       if (!web) return null
       const id = web.send({
         component,
@@ -51,7 +52,7 @@ export function useBridgeComponent(component) {
   useEffect(() => {
     const ids = sentIds.current
     return () => {
-      const web = window.HotwireNative?.web
+      const web = webBridge()
       ids.forEach((id) => web?.removeCallback(id))
       web?.removePendingMessagesFor(component)
     }
