@@ -22,7 +22,11 @@
       "import": "./src/svelte.js"
     }
   },
+  "bin": {
+    "inertia-native": "bin/inertia-native.mjs"
+  },
   "files": [
+    "bin",
     "src",
     "templates"
   ],
@@ -31,7 +35,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc",
-    "lint": "oxlint src/ tests/",
+    "lint": "oxlint src/ tests/ bin/",
     "prepublishOnly": "npm run lint && npm run typecheck && npm test"
   },
   "keywords": [
