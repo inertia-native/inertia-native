@@ -72,6 +72,10 @@ function fakePrompter(answers = {}) {
       asked.push({ label, choices, fallback })
       return answers[label] ?? fallback
     },
+    async confirm(label) {
+      asked.push({ label, confirm: true })
+      return answers[label] ?? true
+    },
     close() {},
   }
 }
@@ -489,11 +493,23 @@ describe('prompts', () => {
     const numbered = prompter.select('Entrypoint', ['a/x.ts', 'b/y.ts'], 'a/x.ts')
     input.write('2\n')
     expect(await numbered).toBe('b/y.ts')
+    for (const [typed, expected] of [['\n', true], ['Y\n', true], ['no\n', false]]) {
+      const confirmed = prompter.confirm('Change it?')
+      input.write(typed)
+      expect(await confirmed).toBe(expected)
+    }
+    const retried = prompter.confirm('Really?')
+    input.write('maybe\n')
+    await new Promise((r) => setTimeout(r, 10))
+    input.write('n\n')
+    expect(await retried).toBe(false)
     prompter.close()
     expect(shown).toContain('? Bundle ID (com.example.a) › ')
     expect(shown).toContain('  nope\n')
     expect(shown).toContain('? Platforms [both/ios/android] (both) › ')
     expect(shown).toContain('  2) b/y.ts\n')
+    expect(shown).toContain('? Change it? (Y/n) › ')
+    expect(shown).toContain('  Answer y or n\n')
   })
 
   it('numbers choices with spaces and asks nothing until a question comes', async () => {
@@ -510,6 +526,97 @@ describe('prompts', () => {
     prompter.close()
     prompter.close()
     expect(shown).toContain('  1) iPhone 17 (iOS 26.5)\n  2) iPhone 16 (iOS 18.2)\n? Simulator [1-2] (iPhone 17 (iOS 26.5)) › ')
+  })
+})
+
+describe('Vite host for Android', () => {
+  const VITE = "import { defineConfig } from 'vite'\n\nexport default defineConfig({\n  plugins: [],\n})\n"
+  const PATCHED = "import { defineConfig } from 'vite'\n\nexport default defineConfig({\n  server: { host: '127.0.0.1' },\n  plugins: [],\n})\n"
+  const QUESTION = 'Set server.host to 127.0.0.1 in vite.config.ts, so Android can load scripts from Vite?'
+  const app = (files = { 'vite.config.ts': VITE }) => project('acme-shop', { artisan: '', 'resources/js/app.tsx': ENTRY, ...files })
+
+  it('changes the Vite config with --yes', async () => {
+    const dir = app()
+    const { code, stdout, stderr } = await cli(['init', '--yes'], dir)
+    expect(code).toBe(0)
+    expect(stderr).toBe('')
+    expect(stdout).toContain('✓ Patched resources/js/app.tsx\n✓ Set server.host to 127.0.0.1 in vite.config.ts\n✓ Created ios/ and android/')
+    expect(read(dir, 'vite.config.ts')).toBe(PATCHED)
+  })
+
+  it('asks in a terminal, after the other questions, and changes it on yes', async () => {
+    const dir = app()
+    const prompter = fakePrompter()
+    await cli(['init'], dir, { prompter })
+    expect(prompter.asked.map((q) => q.label)).toEqual(['Platforms', 'App name', 'Bundle ID', 'Dev server URL', QUESTION])
+    expect(read(dir, 'vite.config.ts')).toBe(PATCHED)
+  })
+
+  it('leaves it alone on no, with the hint', async () => {
+    const dir = app()
+    const { stderr } = await cli(['init', 'android'], dir, { prompter: fakePrompter({ [QUESTION]: false }) })
+    expect(read(dir, 'vite.config.ts')).toBe(VITE)
+    expect(stderr).toBe(
+      "! Android can't load scripts from Vite at [::1], its default address on macOS. For Android, set server.host to '127.0.0.1' in vite.config.ts.\n",
+    )
+  })
+
+  it('prints the hint without a terminal, changing nothing', async () => {
+    const dir = app()
+    const { code, stderr } = await cli(['init'], dir)
+    expect(code).toBe(0)
+    expect(read(dir, 'vite.config.ts')).toBe(VITE)
+    expect(stderr).toContain("For Android, set server.host to '127.0.0.1' in vite.config.ts (or re-run with --yes).\n")
+  })
+
+  it('does nothing for iOS only', async () => {
+    const dir = app()
+    const prompter = fakePrompter()
+    const { stdout, stderr } = await cli(['init', 'ios'], dir, { prompter })
+    expect(read(dir, 'vite.config.ts')).toBe(VITE)
+    expect(prompter.asked.map((q) => q.label)).not.toContain(QUESTION)
+    expect(stdout + stderr).not.toContain('Vite')
+  })
+
+  it('says so when already set, asking nothing', async () => {
+    const dir = app({ 'vite.config.ts': PATCHED })
+    const prompter = fakePrompter()
+    const { stdout } = await cli(['init', 'android'], dir, { prompter })
+    expect(prompter.asked.map((q) => q.label)).not.toContain(QUESTION)
+    expect(stdout).toContain('✓ vite.config.ts already sets server.host\n')
+    expect(read(dir, 'vite.config.ts')).toBe(PATCHED)
+  })
+
+  it('explains why when it cannot change the file', async () => {
+    const source = "export default defineConfig({ server: { host: 'localhost' } })\n"
+    const dir = app({ 'vite.config.js': source })
+    const { code, stderr } = await cli(['init', 'android', '--yes'], dir)
+    expect(code).toBe(0)
+    expect(read(dir, 'vite.config.js')).toBe(source)
+    expect(stderr).toContain(
+      "! Couldn't change vite.config.js: it already sets server.host to 'localhost'. Android can't load scripts from Vite at [::1], " +
+        "its default address on macOS; for Android, set server.host to '127.0.0.1' there by hand.",
+    )
+  })
+
+  it("leaves vite_ruby apps alone: Rails proxies Vite, so Android needs no change", async () => {
+    const json = '{\n  "development": {\n    "port": 3036\n  }\n}\n'
+    const dir = app({ 'vite.config.ts': VITE, 'config/vite.json': json, 'bin/rails': '' })
+    const prompter = fakePrompter()
+    const { stdout, stderr } = await cli(['init', 'android'], dir, { prompter })
+    expect(prompter.asked.map((q) => q.label)).not.toContain(QUESTION)
+    expect(stdout + stderr).not.toContain('Vite')
+    expect(read(dir, 'config/vite.json')).toBe(json)
+    expect(read(dir, 'vite.config.ts')).toBe(VITE)
+  })
+
+  it('changes nothing when re-run', async () => {
+    const dir = app()
+    await cli(['init', '--yes'], dir)
+    const before = snapshot(dir)
+    const { stdout } = await cli(['init', '--yes'], dir)
+    expect(snapshot(dir)).toEqual(before)
+    expect(stdout).toContain('✓ vite.config.ts already sets server.host')
   })
 })
 

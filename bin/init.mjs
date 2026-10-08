@@ -1,6 +1,6 @@
 // `inertia-native init [ios|android|both]`: adds inertia-native to an Inertia
-// app: npm package, entrypoint patch, native shells, package.json scripts.
-// Every step is idempotent.
+// app: npm package, entrypoint patch, Vite host for Android, native shells,
+// package.json scripts. Every step is idempotent.
 import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, join, relative, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
@@ -9,6 +9,7 @@ import { findEntrypoints, MANUAL_LINES, patchEntrypoint, SEARCH_DIRS } from './e
 import { addCommand, defaultUrl, devCommand, findProjectRoot, packageManager, readPackageJson, writePackageJson } from './project.mjs'
 import { createPrompter } from './prompt.mjs'
 import { bundleIdFromName, invalid, nameFromDirectory, PLATFORMS, RULES, TEMPLATES, writeShell } from './shell.mjs'
+import { findViteConfig, patchViteConfig, VITE_HOST } from './vite.mjs'
 
 export const PACKAGE = 'inertia-native'
 
@@ -17,8 +18,10 @@ export const INIT_USAGE = `Usage: npx inertia-native init [ios|android|both] [op
 Sets up inertia-native in your Inertia app (the directory with package.json):
 adds the npm package, patches the file that calls createInertiaApp(),
 creates the native shells ios/ and android/, and adds "ios" and "android"
-scripts to package.json. In a terminal it asks for anything not given as a
-flag. Safe to re-run.
+scripts to package.json. For Android it also offers to set server.host to
+127.0.0.1 in your Vite config: Android can't load scripts from Vite at
+[::1], its default address on macOS. In a terminal it asks for anything not
+given as a flag. Safe to re-run.
 
 Options:
   --name <name>        Name under the app icon.
@@ -31,7 +34,7 @@ Options:
                        under ${SEARCH_DIRS.join(', ')}
   --skip-install       Don't add the inertia-native npm package
   --force              Replace existing ios/ and android/ (default: skip them)
-  -y, --yes            Don't ask; use the defaults
+  -y, --yes            Don't ask; use the defaults and change the Vite host
   -h, --help           Show this help`
 
 /**
@@ -130,7 +133,7 @@ export async function init(argv, io) {
   }
 
   // Questions first, so nothing is written until all answers are in.
-  let platforms, entrypoint, values
+  let platforms, entrypoint, values, vite
   try {
     // 1. Platforms
     const choice = positionals[0] ?? (prompter ? await prompter.select('Platforms', ['both', 'ios', 'android'], 'both') : 'both')
@@ -175,6 +178,17 @@ export async function init(argv, io) {
           ? await prompter.text('Dev server URL', fallback.url, (v) => invalid('url', v))
           : report('Dev server URL', fallback.url, `${fallback.reason}; --url to change`))
       values = { name, bundleId, url }
+    }
+
+    // Vite host, for Android only.
+    const viteConfig = platforms.includes('android') ? findViteConfig(root) : undefined
+    if (viteConfig) {
+      const result = patchViteConfig(readFileSync(viteConfig, 'utf8'))
+      const apply =
+        result.status === 'patched' &&
+        (flags.yes ||
+          (prompter ? await prompter.confirm(`Set server.host to ${VITE_HOST} in ${show(viteConfig)}, so Android can load scripts from Vite?`) : false))
+      vite = { path: viteConfig, result, apply, asked: Boolean(prompter) }
     }
   } finally {
     prompter?.close()
@@ -223,7 +237,24 @@ export async function init(argv, io) {
     )
   }
 
-  // 5. Shells
+  // 5. Vite host
+  if (vite) {
+    const file = show(vite.path)
+    const { result } = vite
+    const why = `Android can't load scripts from Vite at [::1], its default address on macOS`
+    if (result.status === 'patched' && vite.apply) {
+      writeFileSync(vite.path, result.contents)
+      out(`✓ Set server.host to ${VITE_HOST} in ${file}`)
+    } else if (result.status === 'already_patched') {
+      out(`✓ ${file} already sets server.host`)
+    } else if (result.status === 'patched') {
+      warn(`! ${why}. For Android, set server.host to '${VITE_HOST}' in ${file}${vite.asked ? '' : ' (or re-run with --yes)'}.`)
+    } else {
+      warn(`! Couldn't change ${file}: ${result.reason}. ${why}; for Android, set server.host to '${VITE_HOST}' there by hand.`)
+    }
+  }
+
+  // 6. Shells
   const written = []
   for (const platform of platforms) {
     const target = join(root, platform)
@@ -238,7 +269,7 @@ export async function init(argv, io) {
   }
   if (written.length) out(`✓ Created ${written.join(' and ')}`)
 
-  // 6. Scripts
+  // 7. Scripts
   const after = readPackageJson(root)
   const scripts = (after.data.scripts ??= {})
   const added = []
@@ -258,7 +289,7 @@ export async function init(argv, io) {
     out('✓ package.json already has the scripts')
   }
 
-  // 7. Next step
+  // 8. Next step
   const dev = devCommand(root)
   const [first, ...others] = platforms.map((platform) => `${pm} run ${platform}`)
   out()
