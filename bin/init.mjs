@@ -42,9 +42,11 @@ Options:
  * @property {{ write(s: string): unknown }} [stdout]
  * @property {{ write(s: string): unknown }} [stderr]
  * @property {import('./prompt.mjs').Prompter} [prompter] Replaces the terminal prompts (tests).
- * @property {(cmd: string, args: string[], options: { cwd: string, env: Record<string, string | undefined> }) => number} [exec]
- *   Runs a command with inherited stdio and returns its exit code.
+ * @property {(cmd: string, args: string[], options: { cwd: string, env: Record<string, string | undefined>, detached?: boolean }) => number} [exec]
+ *   Runs a command with inherited stdio and returns its exit code; `detached`
+ *   starts it in the background instead (returns 0).
  * @property {string} [templates]
+ * @property {NodeJS.Platform} [os] Replaces process.platform (tests).
  */
 
 /**
