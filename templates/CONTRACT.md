@@ -58,6 +58,8 @@ Copies keep file modes: `gradlew` must stay executable.
     `localhost` must be forwarded with `adb reverse`; `inertia-native run
     android` does that for the app's port and the Vite dev server's. Debug
     builds allow cleartext to `localhost`, `127.0.0.1` and `10.0.2.2`.
+  - Android starts at the base URL with a trailing `/` when it has no path
+    (the web view reports `http://host` as `http://host/`).
 - Register the bridge components that exist on both platforms.
 - The user agent is Hotwire Native's default (`Hotwire Native iOS; ...` /
   `Hotwire Native Android; ...`); server packages detect the app with it.
