@@ -23,7 +23,8 @@
     }
   },
   "files": [
-    "src"
+    "src",
+    "templates"
   ],
   "sideEffects": false,
   "scripts": {
