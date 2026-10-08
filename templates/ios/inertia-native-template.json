@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "files": [
+    "App.xcodeproj/project.pbxproj",
+    "App/AppConfig.swift"
+  ]
+}

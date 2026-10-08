@@ -1,0 +1,16 @@
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Swift Package Manager (keep App.xcodeproj/.../Package.resolved committed)
+.build/
+.swiftpm/

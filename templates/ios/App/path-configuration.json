@@ -1,0 +1,23 @@
+{
+  "settings": {},
+  "rules": [
+    {
+      "patterns": [
+        "/new$",
+        "/edit$"
+      ],
+      "properties": {
+        "context": "modal",
+        "pull_to_refresh_enabled": false
+      }
+    },
+    {
+      "patterns": [
+        "^/$"
+      ],
+      "properties": {
+        "presentation": "clear_all"
+      }
+    }
+  ]
+}
