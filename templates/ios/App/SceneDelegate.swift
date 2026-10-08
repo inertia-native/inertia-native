@@ -29,10 +29,10 @@ extension SceneDelegate: NavigatorDelegate {
         .accept
     }
 
-    func visitableDidFailRequest(_ visitable: any Visitable, error: any Error, retryHandler: RetryBlock?) {
+    func visitableDidFailRequest(_ visitable: any Visitable, error: HotwireNativeError, retryHandler: RetryBlock?) {
         // Handle specific failures here, e.g. route to your sign-in page when
-        // `error` is `TurboError.http(statusCode: 401)`. Everything else gets
-        // Hotwire Native's error screen with a Retry button.
+        // `error.statusCode == 401`. Everything else gets Hotwire Native's
+        // error screen with a Retry button.
         if let errorPresenter = visitable as? ErrorPresenter {
             errorPresenter.presentError(error) {
                 retryHandler?()
