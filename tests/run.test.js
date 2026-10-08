@@ -4,7 +4,18 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { main } from '../bin/cli.mjs'
-import { bakedUrl, findAndroidSdk, findJdk, parseAdbDevices, pickSimulator, reversePorts } from '../bin/run.mjs'
+import {
+  bakedUrl,
+  chooseAndroidTarget,
+  chooseSimulator,
+  findAndroidSdk,
+  findJdk,
+  formatAndroidTargets,
+  formatSimulators,
+  iosSimulators,
+  parseAdbDevices,
+  reversePorts,
+} from '../bin/run.mjs'
 
 let tmp
 beforeEach(() => {
@@ -31,49 +42,236 @@ async function cli(args, cwd = tmp) {
 
 const sim = (name, udid, state = 'Shutdown') => ({ name, udid, state, isAvailable: true })
 
-describe('pickSimulator', () => {
-  const list = {
-    devices: {
-      'com.apple.CoreSimulator.SimRuntime.iOS-18-2': [sim('iPhone 16', 'old-16'), sim('iPad Air', 'old-ipad')],
-      'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [sim('iPad Pro', 'new-ipad'), sim('iPhone 17 Pro', 'new-17p'), sim('iPhone 17', 'new-17')],
-      'com.apple.CoreSimulator.SimRuntime.iOS-26-10': [],
-      'com.apple.CoreSimulator.SimRuntime.watchOS-26-0': [sim('Apple Watch', 'watch')],
+/** Scripted picker: records each question and answers with `answer(choices)` (default: the default). */
+function fakePrompter(answer = (choices, fallback) => fallback) {
+  const asked = []
+  return {
+    asked,
+    async select(label, choices, fallback) {
+      asked.push({ label, choices, fallback })
+      return answer(choices, fallback)
     },
+    async text() {
+      throw new Error('unexpected text prompt')
+    },
+    async confirm() {
+      throw new Error('unexpected confirm prompt')
+    },
+    close() {},
   }
+}
 
-  it('picks the first iPhone of the newest iOS runtime', () => {
-    expect(pickSimulator(list)).toMatchObject({ udid: 'new-17p', runtime: '26.5' })
-  })
+const runtimes = {
+  'com.apple.CoreSimulator.SimRuntime.iOS-18-2': [sim('iPhone 16', 'old-16'), sim('iPad Air', 'old-ipad')],
+  'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [sim('iPad Pro', 'new-ipad'), sim('iPhone 17 Pro', 'new-17p'), sim('iPhone 17', 'new-17')],
+  'com.apple.CoreSimulator.SimRuntime.iOS-26-10': [],
+  'com.apple.CoreSimulator.SimRuntime.watchOS-26-0': [sim('Apple Watch', 'watch')],
+}
+/** iosSimulators of `runtimes`, with the given UDIDs booted. */
+const sims = (...booted) => {
+  const list = structuredClone({ devices: runtimes })
+  for (const devices of Object.values(list.devices)) for (const d of devices) if (booted.includes(d.udid)) d.state = 'Booted'
+  return iosSimulators(list)
+}
 
-  it('prefers a booted iPhone, then any booted simulator', () => {
-    const booted = structuredClone(list)
-    booted.devices['com.apple.CoreSimulator.SimRuntime.iOS-18-2'][0].state = 'Booted'
-    expect(pickSimulator(booted)?.udid).toBe('old-16')
-    const ipad = structuredClone(list)
-    ipad.devices['com.apple.CoreSimulator.SimRuntime.iOS-18-2'][1].state = 'Booted'
-    expect(pickSimulator(ipad)?.udid).toBe('old-ipad')
-  })
-
-  it('takes --device by UDID or by name (newest runtime first, booted preferred)', () => {
-    expect(pickSimulator(list, 'old-16')?.udid).toBe('old-16')
-    expect(pickSimulator(list, 'iPhone 16')?.udid).toBe('old-16')
-    expect(pickSimulator(list, 'iPad Air')?.udid).toBe('old-ipad')
-    expect(pickSimulator(list, 'iPhone 99')).toBeUndefined()
-  })
-
-  it('skips unavailable simulators and returns nothing without an iPhone', () => {
-    const none = { devices: { 'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [{ ...sim('iPhone 17', 'x'), isAvailable: false }, sim('iPad', 'y')] } }
-    expect(pickSimulator(none)).toBeUndefined()
+describe('iosSimulators', () => {
+  it('lists available iOS simulators, newest runtime first', () => {
+    expect(sims().map((s) => `${s.udid} ${s.runtime}`)).toEqual(['new-ipad 26.5', 'new-17p 26.5', 'new-17 26.5', 'old-16 18.2', 'old-ipad 18.2'])
+    const unavailable = { devices: { 'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [{ ...sim('iPhone 17', 'x'), isAvailable: false }, sim('iPad', 'y')] } }
+    expect(iosSimulators(unavailable).map((s) => s.udid)).toEqual(['y'])
   })
 })
 
-it('parses adb devices', () => {
+describe('chooseSimulator', () => {
+  it('takes --device by UDID or by name (booted first, then newest runtime)', async () => {
+    expect((await chooseSimulator(sims(), { device: 'old-16' })).udid).toBe('old-16')
+    expect((await chooseSimulator(sims(), { device: 'iPad Air' })).udid).toBe('old-ipad')
+    const twice = iosSimulators({
+      devices: {
+        'com.apple.CoreSimulator.SimRuntime.iOS-18-2': [sim('Mine', 'a', 'Booted')],
+        'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [sim('Mine', 'b')],
+      },
+    })
+    expect((await chooseSimulator(twice, { device: 'Mine' })).udid).toBe('a')
+    for (const s of twice) s.state = 'Shutdown'
+    expect((await chooseSimulator(twice, { device: 'Mine' })).udid).toBe('b')
+    await expect(chooseSimulator(sims(), { device: 'iPhone 99' })).rejects.toThrow('No simulator "iPhone 99". List them with: npx inertia-native run ios --list')
+  })
+
+  it('uses the one booted simulator, iPad or not, without asking', async () => {
+    const prompter = fakePrompter()
+    expect((await chooseSimulator(sims('old-ipad'), { prompter })).udid).toBe('old-ipad')
+    expect((await chooseSimulator(sims('old-16'), {})).udid).toBe('old-16')
+    expect(prompter.asked).toEqual([])
+  })
+
+  it('asks which of several booted simulators in a terminal', async () => {
+    const prompter = fakePrompter((choices) => choices[1])
+    expect((await chooseSimulator(sims('old-16', 'new-17'), { prompter })).udid).toBe('old-16')
+    expect(prompter.asked).toEqual([
+      { label: 'Several simulators are booted. Which one?', choices: ['iPhone 17 (iOS 26.5)', 'iPhone 16 (iOS 18.2)'], fallback: 'iPhone 17 (iOS 26.5)' },
+    ])
+  })
+
+  it('fails with the list and the --device hint for several booted without a terminal', async () => {
+    await expect(chooseSimulator(sims('old-16', 'new-17'), {})).rejects.toThrow(
+      'Several simulators are booted. Pick one with --device <name or UDID>:\n' +
+        '    iPhone 17  iOS 26.5  new-17\n' +
+        '    iPhone 16  iOS 18.2  old-16',
+    )
+  })
+
+  it('asks which iPhone to start in a terminal when none is booted, newest first', async () => {
+    const prompter = fakePrompter()
+    expect((await chooseSimulator(sims(), { prompter })).udid).toBe('new-17p')
+    expect(prompter.asked).toEqual([
+      {
+        label: 'Which simulator should start?',
+        choices: ['iPhone 17 Pro (iOS 26.5)', 'iPhone 17 (iOS 26.5)', 'iPhone 16 (iOS 18.2)'],
+        fallback: 'iPhone 17 Pro (iOS 26.5)',
+      },
+    ])
+  })
+
+  it('takes the newest iPhone without a terminal when none is booted', async () => {
+    expect((await chooseSimulator(sims(), {})).udid).toBe('new-17p')
+  })
+
+  it('adds the UDID to labels that would be ambiguous', async () => {
+    const same = iosSimulators({
+      devices: {
+        'com.apple.CoreSimulator.SimRuntime.iOS-26-4': [sim('iPhone 17', 'a')],
+        'com.apple.CoreSimulator.SimRuntime.iOS-26-4-1': [sim('iPhone 17', 'b')],
+        'com.apple.CoreSimulator.SimRuntime.iOS-26-0': [sim('iPhone 17', 'c')],
+      },
+    })
+    same[0].runtime = same[1].runtime = '26.4'
+    const prompter = fakePrompter((choices) => choices[1])
+    expect((await chooseSimulator(same, { prompter })).udid).toBe('a')
+    expect(prompter.asked[0].choices).toEqual(['iPhone 17 (iOS 26.4, b)', 'iPhone 17 (iOS 26.4, a)', 'iPhone 17 (iOS 26.0)'])
+  })
+
+  it('tells iPhones by device type, so renamed ones count', async () => {
+    const renamed = iosSimulators({
+      devices: {
+        'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [
+          { ...sim('iPhone-ish iPad', 'ipad'), deviceTypeIdentifier: 'com.apple.CoreSimulator.SimDeviceType.iPad-Air-11-inch-M3' },
+          { ...sim('My phone', 'mine'), deviceTypeIdentifier: 'com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro' },
+        ],
+      },
+    })
+    expect((await chooseSimulator(renamed, {})).udid).toBe('mine')
+  })
+
+  it('fails without any iPhone', async () => {
+    const ipads = iosSimulators({ devices: { 'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [sim('iPad', 'y')] } })
+    await expect(chooseSimulator(ipads, { prompter: fakePrompter() })).rejects.toThrow('No iPhone simulator found.')
+  })
+})
+
+it('lists simulators for --list', () => {
+  expect(formatSimulators(sims('new-17'))).toBe(`Booted simulators (--device <name or UDID>):
+    iPhone 17  iOS 26.5  new-17
+Available simulators:
+    iPad Pro       iOS 26.5  new-ipad
+    iPhone 17 Pro  iOS 26.5  new-17p
+    iPhone 16      iOS 18.2  old-16
+    iPad Air       iOS 18.2  old-ipad`)
+  expect(formatSimulators([])).toBe('Booted simulators (--device <name or UDID>):\n    none\nAvailable simulators:\n    none')
+})
+
+it('parses adb devices, with models from adb devices -l', () => {
   const text = 'List of devices attached\nemulator-5554\tdevice\nR58M\tunauthorized\nemulator-5556\toffline\n\n'
   expect(parseAdbDevices(text)).toEqual([
     { serial: 'emulator-5554', state: 'device' },
     { serial: 'R58M', state: 'unauthorized' },
     { serial: 'emulator-5556', state: 'offline' },
   ])
+  const long = 'List of devices attached\nemulator-5554          device product:sdk_gphone64_arm64 model:sdk_gphone64_arm64 device:emu64a transport_id:1\n' +
+    '1A2B3C                 device usb:1-1 product:panther model:Pixel_7 device:panther transport_id:2\n'
+  expect(parseAdbDevices(long)).toEqual([
+    { serial: 'emulator-5554', state: 'device', model: 'sdk gphone64 arm64' },
+    { serial: '1A2B3C', state: 'device', model: 'Pixel 7' },
+  ])
+})
+
+describe('chooseAndroidTarget', () => {
+  const emu = (serial, avd) => ({ serial, state: 'device', avd })
+  const phone = { serial: '1A2B3C', state: 'device', model: 'Pixel 7' }
+  const unauthorized = { serial: 'R58M', state: 'unauthorized' }
+  const noAvds = () => {
+    throw new Error('AVDs read without need')
+  }
+
+  it('uses the one connected device without asking or reading AVDs', async () => {
+    const prompter = fakePrompter()
+    expect(await chooseAndroidTarget([emu('emulator-5554', 'pixel'), unauthorized], noAvds, { prompter })).toEqual({ serial: 'emulator-5554' })
+    expect(await chooseAndroidTarget([phone], noAvds, {})).toEqual({ serial: '1A2B3C' })
+    expect(prompter.asked).toEqual([])
+  })
+
+  it('asks which of several connected devices in a terminal', async () => {
+    const prompter = fakePrompter((choices) => choices[1])
+    expect(await chooseAndroidTarget([emu('emulator-5554', 'pixel'), phone, unauthorized], noAvds, { prompter })).toEqual({ serial: '1A2B3C' })
+    expect(prompter.asked).toEqual([
+      { label: 'Several devices are connected. Which one?', choices: ['emulator-5554  pixel', '1A2B3C  Pixel 7'], fallback: 'emulator-5554  pixel' },
+    ])
+  })
+
+  it('fails with the list and the --device hint for several devices without a terminal', async () => {
+    await expect(chooseAndroidTarget([emu('emulator-5554', 'pixel'), phone], noAvds, {})).rejects.toThrow(
+      'Several devices are connected. Pick one with --device <serial>:\n    emulator-5554  pixel\n    1A2B3C         Pixel 7',
+    )
+  })
+
+  it('starts the only AVD when nothing is connected, without asking', async () => {
+    const prompter = fakePrompter()
+    expect(await chooseAndroidTarget([unauthorized], () => ['pixel'], { prompter })).toEqual({ avd: 'pixel' })
+    expect(await chooseAndroidTarget([], () => ['pixel'], {})).toEqual({ avd: 'pixel' })
+    expect(prompter.asked).toEqual([])
+  })
+
+  it('asks which of several AVDs to start in a terminal', async () => {
+    const prompter = fakePrompter()
+    expect(await chooseAndroidTarget([], () => ['pixel', 'tablet'], { prompter })).toEqual({ avd: 'pixel' })
+    expect(prompter.asked).toEqual([{ label: 'No device is connected. Which emulator should start?', choices: ['pixel', 'tablet'], fallback: 'pixel' }])
+  })
+
+  it('fails with the AVDs and the --avd hint without a terminal', async () => {
+    await expect(chooseAndroidTarget([], () => ['pixel', 'tablet'], {})).rejects.toThrow(
+      'No device is connected. Pick an emulator to start with --avd <name>:\n    pixel\n    tablet',
+    )
+  })
+
+  it('fails when there is nothing to run on', async () => {
+    await expect(chooseAndroidTarget([unauthorized], () => [], { prompter: fakePrompter() })).rejects.toThrow(
+      'No device is connected and no emulator to start. In Android Studio: Device Manager > Create Virtual Device.',
+    )
+  })
+
+  it('takes --device among connected devices', async () => {
+    const devices = [emu('emulator-5554', 'pixel'), phone, unauthorized]
+    expect(await chooseAndroidTarget(devices, noAvds, { device: '1A2B3C' })).toEqual({ serial: '1A2B3C' })
+    await expect(chooseAndroidTarget(devices, noAvds, { device: 'R58M' })).rejects.toThrow('No device R58M connected. Connected: emulator-5554, 1A2B3C')
+  })
+
+  it('takes --avd: its serial when running, else starts it', async () => {
+    const devices = [emu('emulator-5554', 'pixel'), emu('emulator-5556', 'tablet')]
+    expect(await chooseAndroidTarget(devices, noAvds, { avd: 'tablet' })).toEqual({ serial: 'emulator-5556' })
+    expect(await chooseAndroidTarget(devices, () => ['pixel', 'tablet', 'tv'], { avd: 'tv' })).toEqual({ avd: 'tv' })
+    await expect(chooseAndroidTarget(devices, () => ['pixel', 'tablet'], { avd: 'watch' })).rejects.toThrow('No emulator "watch". Emulators: pixel, tablet')
+  })
+})
+
+it('lists devices and emulators for --list', () => {
+  const devices = [{ serial: 'emulator-5554', state: 'device', avd: 'pixel' }, { serial: 'R58M', state: 'unauthorized' }]
+  expect(formatAndroidTargets(devices, ['pixel', 'tablet'])).toBe(`Connected devices (--device <serial>):
+    emulator-5554  pixel
+    R58M           unauthorized
+Emulators (--avd <name>):
+    pixel   running as emulator-5554
+    tablet`)
+  expect(formatAndroidTargets([], [])).toBe('Connected devices (--device <serial>):\n    none\nEmulators (--avd <name>):\n    none')
 })
 
 it('reads the URL baked into generated shells', async () => {
@@ -192,5 +390,6 @@ describe('run errors', () => {
     const { code, stdout } = await cli(['run', '--help'])
     expect(code).toBe(0)
     expect(stdout).toContain('--avd <name>')
+    expect(stdout).toContain('--list')
   })
 })

@@ -495,6 +495,22 @@ describe('prompts', () => {
     expect(shown).toContain('? Platforms [both/ios/android] (both) › ')
     expect(shown).toContain('  2) b/y.ts\n')
   })
+
+  it('numbers choices with spaces and asks nothing until a question comes', async () => {
+    const input = new PassThrough()
+    const output = new PassThrough()
+    let shown = ''
+    output.on('data', (chunk) => (shown += chunk))
+    const prompter = createPrompter(input, output)
+    prompter.close()
+    expect(input.listenerCount('data')).toBe(0)
+    const picked = prompter.select('Simulator', ['iPhone 17 (iOS 26.5)', 'iPhone 16 (iOS 18.2)'], 'iPhone 17 (iOS 26.5)')
+    input.write('2\n')
+    expect(await picked).toBe('iPhone 16 (iOS 18.2)')
+    prompter.close()
+    prompter.close()
+    expect(shown).toContain('  1) iPhone 17 (iOS 26.5)\n  2) iPhone 16 (iOS 18.2)\n? Simulator [1-2] (iPhone 17 (iOS 26.5)) › ')
+  })
 })
 
 describe('package.json scripts', () => {

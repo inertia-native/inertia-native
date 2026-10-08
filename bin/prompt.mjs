@@ -11,39 +11,44 @@ import { createInterface } from 'node:readline/promises'
  */
 
 /**
+ * The terminal is taken over at the first question only, so a prompter that
+ * asks nothing leaves stdin alone.
  * @param {NodeJS.ReadableStream} input
  * @param {NodeJS.WritableStream} output
  * @returns {Prompter}
  */
 export function createPrompter(input, output) {
-  const rl = createInterface({ input, output })
+  /** @type {import('node:readline/promises').Interface | undefined} */
+  let rl
+  const ask = (/** @type {string} */ query) => (rl ??= createInterface({ input, output })).question(query)
   const write = (/** @type {string} */ s) => output.write(s)
 
   return {
     async text(label, fallback, check) {
       for (;;) {
-        const answer = (await rl.question(`? ${label} (${fallback}) › `)).trim() || fallback
+        const answer = (await ask(`? ${label} (${fallback}) › `)).trim() || fallback
         const error = check?.(answer)
         if (!error) return answer
         write(`  ${error}\n`)
       }
     },
     async select(label, choices, fallback) {
-      // Paths and long lists read better numbered.
-      const numbered = choices.length > 3 || choices.some((choice) => choice.includes('/'))
+      // Paths, names with spaces and long lists read better numbered.
+      const numbered = choices.length > 3 || choices.some((choice) => /[\s/]/.test(choice) || choice.length > 20)
       if (numbered) choices.forEach((choice, i) => write(`  ${i + 1}) ${choice}\n`))
       const hint = numbered ? `1-${choices.length}` : choices.join('/')
       for (;;) {
-        const answer = (await rl.question(`? ${label} [${hint}] (${fallback}) › `)).trim()
+        const answer = (await ask(`? ${label} [${hint}] (${fallback}) › `)).trim()
         if (!answer) return fallback
         const byNumber = choices[Number(answer) - 1]
         if (/^\d+$/.test(answer) && byNumber) return byNumber
         if (choices.includes(answer)) return answer
-        write(`  Pick one of: ${choices.join(', ')}\n`)
+        write(`  Pick one of: ${numbered ? hint : choices.join(', ')}\n`)
       }
     },
     close() {
-      rl.close()
+      rl?.close()
+      rl = undefined
     },
   }
 }
