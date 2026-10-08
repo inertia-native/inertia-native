@@ -24,8 +24,8 @@ if (!['ios', 'android'].includes(platform) || !dest) {
 
 const checks = {
   name: [/^[A-Za-z0-9][A-Za-z0-9 .-]{0,29}$/, values.name],
-  'bundle-id': [/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/, values['bundle-id']],
-  url: [/^https?:\/\/[^\s/]+(\/[^\s]*[^\s/])?$/, values.url],
+  'bundle-id': [/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/, values['bundle-id']],
+  url: [/^https?:\/\/[A-Za-z0-9.-]+(:\d+)?(\/[A-Za-z0-9._~-]+)*$/, values.url],
 }
 for (const [key, [pattern, value]] of Object.entries(checks)) {
   if (!value || !pattern.test(value)) {

@@ -38,8 +38,13 @@ copied byte-for-byte (this includes binaries such as the Gradle wrapper jar).
 Installers validate input so that no escaping is ever needed:
 
 - `__APP_NAME__`: `^[A-Za-z0-9][A-Za-z0-9 .-]{0,29}$`
-- `__BUNDLE_ID__`: `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$`
-- `__BASE_URL__`: `http://` or `https://` URL without trailing slash
+- `__BUNDLE_ID__`: `^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$` (iOS rejects `_`,
+  Android rejects `-`, so neither is allowed)
+- `__BASE_URL__`: `^https?://[A-Za-z0-9.-]+(:\d+)?(/[A-Za-z0-9._~-]+)*$`
+  (no trailing slash; no `$`, quotes or backslashes, since the value lands in
+  Kotlin and Swift string literals)
+
+Copies keep file modes: `gradlew` must stay executable.
 
 ## Behaviour both shells must have
 
