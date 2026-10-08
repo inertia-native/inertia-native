@@ -1,7 +1,7 @@
 // `inertia-native run ios|android`: builds the native shell, picks or boots a
 // simulator/emulator, installs and launches the app.
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
@@ -215,7 +215,9 @@ async function runAndroid(root, env, flags, url, out, warn) {
 
 /**
  * Ports for `adb reverse`: the app's (when its URL is local) and the Vite dev
- * server's (laravel-vite-plugin's public/hot, vite_ruby's config/vite.json).
+ * server's: the URL laravel-vite-plugin (public/hot) or rails-vite-plugin
+ * (tmp/rails-vite.json) wrote, vite_ruby's port (config/vite.json), else
+ * Vite's default 5173 for a dev server started later.
  * @param {string} root
  * @param {string | undefined} url
  * @returns {{ ports: number[], warning?: string }}
@@ -228,30 +230,40 @@ export function reversePorts(root, url) {
   if (app && local(app)) ports.add(port(app))
 
   let warning
-  const hot = join(root, 'public', 'hot')
-  if (existsSync(hot)) {
-    const vite = parseUrl(readFileSync(hot, 'utf8').trim())
-    if (vite?.hostname === '[::1]') {
-      warning =
-        `! Vite listens on ${vite.host} (IPv6) only, which Android can't reach: the app will show "Error loading page".\n` +
-        "  Add server: { host: '127.0.0.1' } to your vite.config, restart the dev server and run this again."
-    } else if (vite && local(vite)) {
-      ports.add(port(vite))
-    }
-  } else if (existsSync(join(root, 'artisan'))) {
-    ports.add(5173) // Vite's default, for a dev server started later
-  }
-
-  const viteJson = join(root, 'config', 'vite.json')
-  if (existsSync(viteJson)) {
-    try {
-      const config = JSON.parse(readFileSync(viteJson, 'utf8'))
-      ports.add(Number(config.development?.port ?? config.all?.port ?? 3036))
-    } catch {
-      // Not ours to fix; the app still loads through Rails.
-    }
+  const vite = parseUrl(devServerUrl(root))
+  const viteRuby = readJson(join(root, 'config', 'vite.json'))
+  if (vite?.hostname === '[::1]') {
+    warning =
+      `! Vite listens on ${vite.host} (IPv6) only, which Android can't reach: the app will show "Error loading page".\n` +
+      "  Add server: { host: '127.0.0.1' } to your vite.config, restart the dev server and run this again."
+  } else if (vite && local(vite)) {
+    ports.add(port(vite))
+  } else if (viteRuby) {
+    ports.add(Number(viteRuby.development?.port ?? viteRuby.all?.port ?? 3036))
+  } else if (readdirSync(root).some((file) => /^vite\.config\.[cm]?[jt]s$/.test(file))) {
+    ports.add(5173)
   }
   return { ports: [...ports], warning }
+}
+
+/**
+ * The running Vite dev server's URL, as written by the Laravel or Rails plugin.
+ * @param {string} root
+ */
+function devServerUrl(root) {
+  const hot = join(root, 'public', 'hot')
+  if (existsSync(hot)) return readFileSync(hot, 'utf8').trim()
+  const meta = readJson(join(root, 'tmp', 'rails-vite.json'))
+  return typeof meta?.url === 'string' ? meta.url : undefined
+}
+
+/** @param {string} path @returns {any} */
+function readJson(path) {
+  try {
+    return existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : undefined
+  } catch {
+    return undefined
+  }
 }
 
 /** @param {string | undefined} value */

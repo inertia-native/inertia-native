@@ -100,8 +100,9 @@ describe('reversePorts', () => {
     expect(reversePorts(tmp, undefined).ports).toEqual([])
   })
 
-  it("adds Laravel's Vite port: from public/hot, else 5173", () => {
-    file('artisan')
+  it("adds Laravel's Vite port: from public/hot, else Vite's default with a vite.config", () => {
+    expect(reversePorts(tmp, 'http://localhost:8000').ports).toEqual([8000])
+    file('vite.config.ts')
     expect(reversePorts(tmp, 'http://localhost:8000').ports).toEqual([8000, 5173])
     file('public/hot', 'http://127.0.0.1:5174')
     expect(reversePorts(tmp, 'http://localhost:8000').ports).toEqual([8000, 5174])
@@ -109,9 +110,17 @@ describe('reversePorts', () => {
     expect(reversePorts(tmp, 'http://localhost:8000').ports).toEqual([8000, 5175])
   })
 
-  it('explains the fix when Vite listens on [::1] only', () => {
-    file('artisan')
-    file('public/hot', 'http://[::1]:5173')
+  it("adds rails-vite-plugin's port from tmp/rails-vite.json", () => {
+    file('tmp/rails-vite.json', JSON.stringify({ url: 'http://127.0.0.1:5180', sourceDir: 'app/javascript' }))
+    expect(reversePorts(tmp, 'http://localhost:3000').ports).toEqual([3000, 5180])
+  })
+
+  it.each([
+    ['public/hot', 'http://[::1]:5173'],
+    ['tmp/rails-vite.json', JSON.stringify({ url: 'http://[::1]:5173' })],
+  ])('explains the fix when Vite listens on [::1] only (%s)', (path, content) => {
+    file('vite.config.ts')
+    file(path, content)
     const { ports, warning } = reversePorts(tmp, 'http://localhost:8000')
     expect(ports).toEqual([8000])
     expect(warning).toContain("Vite listens on [::1]:5173 (IPv6) only")
@@ -125,6 +134,8 @@ describe('reversePorts', () => {
     expect(reversePorts(tmp, 'http://localhost:3000').ports).toEqual([3000, 3036])
     file('config/vite.json', '{ nope')
     expect(reversePorts(tmp, 'http://localhost:3000').ports).toEqual([3000])
+    file('vite.config.mts')
+    expect(reversePorts(tmp, 'http://localhost:3000').ports).toEqual([3000, 5173])
   })
 })
 
