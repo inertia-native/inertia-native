@@ -14,3 +14,8 @@ export function uuid() {
 export function expandURL(locatable) {
   return new URL(locatable.toString(), document.baseURI)
 }
+
+// The web bridge core, or undefined during SSR (no window) and before it loads.
+export function webBridge() {
+  return typeof window === 'undefined' ? undefined : window.HotwireNative?.web
+}

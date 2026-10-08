@@ -7,6 +7,9 @@ import { enableDebug, log } from './log.js'
 // Installs the `window.Turbo` shim that Hotwire Native's injected turbo.js
 // drives. Inert in a regular browser (nothing registers an adapter).
 export function initInertiaNative({ debug = false, proposeFormRedirects = false } = {}) {
+  // SSR: there's no web view on the server.
+  if (typeof window === 'undefined') return
+
   if (debug) enableDebug()
 
   // Idempotent: a repeat call (HMR, double import, StrictMode) would register a
