@@ -13,6 +13,10 @@ renames.
 
 Installers refuse to overwrite an existing target directory unless forced.
 
+npm never publishes files named `.gitignore`, so templates ship them as
+`gitignore`. Installers rename every file named exactly `gitignore` (at any
+depth) to `.gitignore`. This is the only rename.
+
 ## Placeholders
 
 Each template root has `inertia-native-template.json`:
@@ -54,6 +58,9 @@ Installers validate input so that no escaping is ever needed:
 ## Fixed names
 
 - iOS: `App.xcodeproj`, target `App`, scheme `App`. No signing team set.
+  Display name and bundle ID are target build settings in `project.pbxproj`
+  (editable in Xcode's General tab); the base URL lives in
+  `App/AppConfig.swift`.
 - Android: Kotlin package / Gradle `namespace` stays fixed; only
   `applicationId` takes `__BUNDLE_ID__`.
 

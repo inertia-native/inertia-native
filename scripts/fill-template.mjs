@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Reference implementation of templates/CONTRACT.md.
 // Usage: node scripts/fill-template.mjs <ios|android> <dest> --name Acme --bundle-id com.acme.app --url http://localhost:8000 [--force]
-import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { cpSync, existsSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
@@ -48,6 +48,13 @@ if (existsSync(target)) {
 const manifest = JSON.parse(readFileSync(join(source, 'inertia-native-template.json'), 'utf8'))
 cpSync(source, target, { recursive: true })
 rmSync(join(target, 'inertia-native-template.json'))
+
+// npm drops `.gitignore` from packages, so templates ship them as `gitignore`.
+for (const file of readdirSync(target, { recursive: true })) {
+  if (basename(file) === 'gitignore') {
+    renameSync(join(target, file), join(target, dirname(file), '.gitignore'))
+  }
+}
 
 const replacements = {
   __APP_NAME__: values.name,
