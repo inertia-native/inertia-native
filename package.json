@@ -34,7 +34,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc",
+    "typecheck": "tsc && tsc -p tsconfig.bin.json",
     "lint": "oxlint src/ tests/ bin/",
     "prepublishOnly": "npm run lint && npm run typecheck && npm test"
   },
@@ -80,6 +80,7 @@
   },
   "devDependencies": {
     "@inertiajs/core": "^3.0.0",
+    "@types/node": "^20.19.43",
     "jsdom": "^29.1.1",
     "oxlint": "^1.0.0",
     "svelte": "^5.0.0",
