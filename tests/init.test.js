@@ -673,7 +673,6 @@ describe.each([
   ['android', {
     'app/build.gradle.kts': ['applicationId = "com.acme.app"', '"BASE_URL", "\\"http://localhost:8000\\""'],
     'app/src/main/res/values/strings.xml': ['<string name="app_name">Acme 2.0</string>'],
-    'settings.gradle.kts': ['rootProject.name = "Acme 2.0"'],
   }],
 ])('%s output', (platform, filled) => {
   const values = ['--name', 'Acme 2.0', '--bundle-id', 'com.acme.app', '--url', 'http://localhost:8000']
