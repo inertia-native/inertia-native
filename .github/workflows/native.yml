@@ -1,0 +1,90 @@
+# Builds the apps that `inertia-native init` generates, so the templates
+# don't rot silently as Xcode, AGP and Hotwire Native move. Runs on changes
+# to the CLI or templates, and weekly to catch toolchain drift on the
+# runner images.
+name: Native
+
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - bin/**
+      - templates/**
+      - package.json
+      - .github/scripts/native-fixture.sh
+      - .github/workflows/native.yml
+  pull_request:
+    paths: *paths
+  schedule:
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    name: iOS (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # macos-26: its default Xcode 26.x, what most users have.
+        # xcode-27: preview image with Xcode 27, to hear about breakage
+        # before users do. Drop it if the preview is flaky.
+        runner: [macos-26, xcode-27]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: .github/scripts/native-fixture.sh "$RUNNER_TEMP/acme-shop"
+      - uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/spm
+          key: spm-${{ hashFiles('templates/ios/**/Package.resolved') }}
+      - run: xcodebuild -version
+      # Debug for the simulator is what `inertia-native run ios` builds;
+      # Release for a device is what an archive builds (unsigned here).
+      - name: Build Debug (iOS Simulator)
+        working-directory: ${{ runner.temp }}/acme-shop
+        run: >-
+          xcodebuild -project ios/App.xcodeproj -scheme App
+          -configuration Debug -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath "$RUNNER_TEMP/DerivedData"
+          -clonedSourcePackagesDirPath "$RUNNER_TEMP/spm"
+          -onlyUsePackageVersionsFromResolvedFile -quiet build
+      - name: Build Release (iOS device)
+        working-directory: ${{ runner.temp }}/acme-shop
+        run: >-
+          xcodebuild -project ios/App.xcodeproj -scheme App
+          -configuration Release -destination 'generic/platform=iOS'
+          -derivedDataPath "$RUNNER_TEMP/DerivedData"
+          -clonedSourcePackagesDirPath "$RUNNER_TEMP/spm"
+          -onlyUsePackageVersionsFromResolvedFile -quiet build
+          CODE_SIGNING_ALLOWED=NO
+
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      # gradle-daemon-jvm.properties asks for 21; Gradle would download it otherwise.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      # Also runs wrapper validation on every gradle-wrapper.jar in the
+      # checkout (templates/android): validate-wrappers defaults to true.
+      - uses: gradle/actions/setup-gradle@v6
+      - run: .github/scripts/native-fixture.sh "$RUNNER_TEMP/acme-shop"
+      - name: Build and lint
+        working-directory: ${{ runner.temp }}/acme-shop/android
+        run: ./gradlew assembleDebug assembleRelease lintDebug
