@@ -46,7 +46,7 @@ export function invalid(flag, value) {
 export function nameFromDirectory(dir) {
   const words = dir
     .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .split(/[^A-Za-z0-9]+/)
     .filter(Boolean)
     .map((word) => word[0].toUpperCase() + word.slice(1))
@@ -92,8 +92,7 @@ export function writeShell(source, target, { name, bundleId, url }) {
     const path = join(target, file)
     let content = readFileSync(path, 'utf8')
     for (const [placeholder, value] of Object.entries(replacements)) {
-      // A function replacement keeps `$&`-style patterns in values literal.
-      content = content.replaceAll(placeholder, () => value)
+      content = content.replaceAll(placeholder, value)
     }
     writeFileSync(path, content)
   }

@@ -65,8 +65,7 @@ for (const file of manifest.files) {
   const path = join(target, file)
   let content = readFileSync(path, 'utf8')
   for (const [placeholder, value] of Object.entries(replacements)) {
-    // A function replacement keeps `$&`-style patterns in values literal.
-    content = content.replaceAll(placeholder, () => value)
+    content = content.replaceAll(placeholder, value)
   }
   writeFileSync(path, content)
 }
