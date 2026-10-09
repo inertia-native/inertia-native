@@ -51,6 +51,12 @@ npm never publishes files named `.gitignore`, so the templates ship them as
   The Gradle root project is always `android`, so the app name never has to
   be a valid Gradle project name.
 
+## Third-party code
+
+Code taken from other projects keeps a header naming its source, and its
+license (full text) goes in the template's `THIRD_PARTY_NOTICES`, which
+`init` copies with the rest.
+
 ## Android JDK
 
 Gradle runs on whatever JDK `JAVA_HOME` (or Android Studio) points at, 17 or

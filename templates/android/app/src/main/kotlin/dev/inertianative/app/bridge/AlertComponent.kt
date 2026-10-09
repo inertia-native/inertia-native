@@ -1,3 +1,6 @@
+// Follows joemasilotti/bridge-components. Copyright (c) 2025 Joseph Masilotti,
+// MIT License: https://github.com/joemasilotti/bridge-components/blob/main/LICENSE
+
 package dev.inertianative.app.bridge
 
 import android.util.Log
