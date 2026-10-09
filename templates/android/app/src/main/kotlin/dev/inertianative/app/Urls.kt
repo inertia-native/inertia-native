@@ -15,7 +15,4 @@ object Urls {
     // The web view reports `http://host` as `http://host/`; starting there
     // avoids a cold-boot "redirect" to the same page.
     val start: String = if (Regex("""^https?://[^/]+$""").matches(base)) "$base/" else base
-
-    val pathConfiguration: String =
-        "$base/inertia-native/path-configuration/android_v1.json"
 }

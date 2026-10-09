@@ -36,13 +36,13 @@ class MainApplication : Application() {
             Hotwire.config.logger.logLevel = HotwireLogLevel.DEBUG
         }
 
-        // The bundled file applies right away; the server's copy replaces it
-        // once downloaded, so you can change navigation without a release.
+        // To change navigation without a release, serve a copy of this file
+        // and add `remoteFileUrl = "${Urls.base}/..."`: it replaces the
+        // bundled rules once downloaded, on every launch.
         Hotwire.loadPathConfiguration(
             context = this,
             location = PathConfiguration.Location(
-                assetFilePath = "json/path-configuration.json",
-                remoteFileUrl = Urls.pathConfiguration
+                assetFilePath = "json/path-configuration.json"
             )
         )
     }

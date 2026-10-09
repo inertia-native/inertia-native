@@ -15,11 +15,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     private func configureHotwire() {
-        // The bundled file applies right away; the server copy replaces it
-        // once downloaded (and is cached for the next launch).
+        // To change navigation without a release, serve a copy of this file
+        // and add `.server(AppConfig.baseURL.appending(path: "..."))`: it
+        // replaces the bundled rules once downloaded, on every launch.
         Hotwire.loadPathConfiguration(from: [
             .file(Bundle.main.url(forResource: "path-configuration", withExtension: "json")!),
-            .server(AppConfig.pathConfigurationURL),
         ])
 
         // Native halves of the bridge components. Each one only does
