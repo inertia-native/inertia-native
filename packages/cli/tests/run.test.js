@@ -533,7 +533,7 @@ describe('run', () => {
   })
 
   describe('android', () => {
-    const am = 'adb -s emulator-5554 shell monkey -p com.acme.shop -c android.intent.category.LAUNCHER 1'
+    const am = 'adb -s emulator-5554 shell monkey -p com.acme.shop -c android.intent.category.LAUNCHER --pct-syskeys 0 1'
     const connected = 'List of devices attached\nemulator-5554          device product:sdk_gphone64_arm64 model:sdk_gphone64_arm64 transport_id:1\n'
     let env
     beforeEach(async () => {
@@ -599,7 +599,7 @@ describe('run', () => {
         env,
         captures: captures({
           'adb devices -l': { stdout: connected },
-          [am]: { stdout: '** No activities found to run, monkey aborted.\n' },
+          [am]: { stdout: '  bash arg: -p\n  bash arg: com.acme.shop\n** No activities found to run, monkey aborted.\n' },
         }),
         spawns: { './gradlew installDebug': 0 },
       })

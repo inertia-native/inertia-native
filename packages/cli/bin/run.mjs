@@ -290,9 +290,13 @@ async function runAndroid(root, flags, url, prompter, io, out, warn) {
   const appId =
     readFileSync(join(android, 'app', 'build.gradle.kts'), 'utf8').match(/applicationId\s*=\s*"([^"]+)"/)?.[1] ??
     fail("Couldn't find applicationId in android/app/build.gradle.kts.")
-  // Starts the app's launcher activity, whatever its class is called.
-  const started = capture(adb, ['-s', /** @type {string} */ (serial), 'shell', 'monkey', '-p', appId, '-c', 'android.intent.category.LAUNCHER', '1'])
-  if (!started.ok || /aborted/.test(started.stdout)) fail(`Couldn't launch ${appId}: ${(started.stdout + started.stderr).trim()}`)
+  // Starts the app's launcher activity, whatever its class is called. Without
+  // --pct-syskeys 0, monkey aborts on emulators, which have no system keys.
+  const monkey = ['monkey', '-p', appId, '-c', 'android.intent.category.LAUNCHER', '--pct-syskeys', '0', '1']
+  const started = capture(adb, ['-s', /** @type {string} */ (serial), 'shell', ...monkey])
+  if (!started.ok || /aborted/.test(started.stdout)) {
+    fail(`Couldn't launch ${appId}: ${(started.stdout + started.stderr).trim().split('\n').at(-1)}`)
+  }
   out(`✓ Launched ${appId} on ${serial}`)
 }
 
