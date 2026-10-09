@@ -12,7 +12,6 @@ import { createPrompter } from '../bin/prompt.mjs'
 import { bundleIdFromName, nameFromDirectory } from '../bin/shell.mjs'
 
 const ROOT = resolve(import.meta.dirname, '..')
-const SPEC = `inertia-native@^${JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version}`
 const BIN = join(ROOT, 'bin', 'inertia-native.mjs')
 const NAME_RULE = /^[A-Za-z0-9][A-Za-z0-9 .-]{0,29}$/
 const BUNDLE_RULE = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/
@@ -40,7 +39,7 @@ function project(dirName = 'acme-shop', files = {}) {
   return dir
 }
 
-/** Stands in for `npm install <spec>`: records the call and adds the dependency. */
+/** Stands in for `npm install [-D] <spec>`: records the call and adds the dependency. */
 function fakeInstaller(status = 0) {
   const calls = []
   const exec = (cmd, args, { cwd, env }) => {
@@ -48,7 +47,9 @@ function fakeInstaller(status = 0) {
     if (status === 0) {
       const path = join(cwd, 'package.json')
       const pkg = JSON.parse(readFileSync(path, 'utf8'))
-      pkg.dependencies = { ...pkg.dependencies, 'inertia-native': '^1.0.0' }
+      const field = args.includes('-D') ? 'devDependencies' : 'dependencies'
+      const name = args.at(-1).match(/^(@?[^@]+)@/)?.[1] ?? args.at(-1)
+      pkg[field] = { ...pkg[field], [name]: '^1.0.0' }
       writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`)
     }
     return status
@@ -125,15 +126,21 @@ describe('init on a Laravel-like app', () => {
 ✓ App name: Acme Shop (--name to change)
 ✓ Bundle ID: com.example.acmeshop (--bundle-id to change)
 ✓ Dev server URL: http://localhost:8000 (found artisan; --url to change)
-› npm install ${SPEC}
+› npm install inertia-native@^1.0.0
 ✓ Added inertia-native to package.json (npm)
+› npm install -D @inertia-native/cli@^1.0.0
+✓ Added @inertia-native/cli to package.json (npm)
 ✓ Created resources/js/inertia-native.ts, imported in resources/js/app.tsx
 ✓ Created ios/ and android/
 ✓ Added "ios" and "android" scripts to package.json
 
 Next: start your dev server (composer run dev), then run: npm run ios (or npm run android)
 `)
-    expect(installer.calls.map((c) => [c.cmd, c.args, c.cwd])).toEqual([['npm', ['install', SPEC], dir]])
+    expect(installer.calls.map((c) => [c.cmd, c.args, c.cwd])).toEqual([
+      ['npm', ['install', 'inertia-native@^1.0.0'], dir],
+      ['npm', ['install', '-D', '@inertia-native/cli@^1.0.0'], dir],
+    ])
+    expect(pkgJson(dir).devDependencies).toEqual({ '@inertia-native/cli': '^1.0.0' })
     expect(read(dir, 'resources/js/app.tsx')).toContain("import './inertia-native';\n")
     expect(read(dir, 'resources/js/inertia-native.ts')).toContain("import { initInertiaNative } from 'inertia-native';\n")
     expect(read(dir, 'resources/js/ssr.tsx')).toBe(ENTRY)
@@ -151,6 +158,7 @@ Next: start your dev server (composer run dev), then run: npm run ios (or npm ru
     expect(snapshot(dir)).toEqual(before)
     expect(installer.calls).toEqual([])
     expect(stdout).toContain('✓ inertia-native is already in package.json')
+    expect(stdout).toContain('✓ @inertia-native/cli is already in package.json')
     expect(stdout).toContain('✓ resources/js/app.tsx already sets up inertia-native')
     expect(stdout).toContain('✓ package.json already has the scripts')
     expect(stdout).not.toContain('App name')
@@ -316,16 +324,19 @@ describe('validation', () => {
 
 describe('package', () => {
   it.each([
-    ['pnpm-lock.yaml', 'pnpm', ['add', SPEC]],
-    ['yarn.lock', 'yarn', ['add', SPEC]],
-    ['bun.lock', 'bun', ['add', SPEC]],
-    ['bun.lockb', 'bun', ['add', SPEC]],
-    ['package-lock.json', 'npm', ['install', SPEC]],
-  ])('uses the package manager of %s', async (lockfile, cmd, args) => {
+    ['pnpm-lock.yaml', 'pnpm', 'add'],
+    ['yarn.lock', 'yarn', 'add'],
+    ['bun.lock', 'bun', 'add'],
+    ['bun.lockb', 'bun', 'add'],
+    ['package-lock.json', 'npm', 'install'],
+  ])('uses the package manager of %s', async (lockfile, cmd, add) => {
     const dir = project('acme-shop', { [lockfile]: '' })
     const installer = fakeInstaller()
     const { stdout } = await cli(['init', 'ios'], dir, { exec: installer.exec })
-    expect(installer.calls.map((c) => [c.cmd, c.args])).toEqual([[cmd, args]])
+    expect(installer.calls.map((c) => [c.cmd, c.args])).toEqual([
+      [cmd, [add, 'inertia-native@^1.0.0']],
+      [cmd, [add, '-D', '@inertia-native/cli@^1.0.0']],
+    ])
     expect(stdout).toContain(`✓ Added inertia-native to package.json (${cmd})`)
     expect(stdout).toContain(`then run: ${cmd} run ios`)
   })
@@ -337,8 +348,10 @@ describe('package', () => {
     expect(installer.calls[0].cmd).toBe('pnpm')
   })
 
-  it('skips the install when the package is already a (dev) dependency', async () => {
-    const dir = project('acme-shop', { 'package.json': '{ "devDependencies": { "inertia-native": "^1.0.0" } }' })
+  it('skips the install when the packages are already (dev) dependencies', async () => {
+    const dir = project('acme-shop', {
+      'package.json': '{ "dependencies": { "@inertia-native/cli": "^1.0.0" }, "devDependencies": { "inertia-native": "^1.0.0" } }',
+    })
     const installer = fakeInstaller()
     const { stdout } = await cli(['init', 'ios'], dir, { exec: installer.exec })
     expect(installer.calls).toEqual([])
@@ -351,37 +364,42 @@ describe('package', () => {
     const { code, stderr } = await cli(['init', 'ios', '--skip-install'], dir, { exec: installer.exec })
     expect(code).toBe(0)
     expect(installer.calls).toEqual([])
-    expect(stderr).toContain(`! Skipped adding inertia-native (--skip-install). Add it with: yarn add ${SPEC}`)
+    expect(stderr).toContain('! Skipped adding inertia-native (--skip-install). Add it with: yarn add inertia-native@^1.0.0')
+    expect(stderr).toContain('! Skipped adding @inertia-native/cli (--skip-install). Add it with: yarn add -D @inertia-native/cli@^1.0.0')
   })
 
   it('carries on but exits 1 when the install fails', async () => {
     const dir = project('acme-shop', { 'resources/js/app.tsx': ENTRY })
     const { code, stdout, stderr } = await cli(['init', 'ios'], dir, { exec: fakeInstaller(1).exec })
     expect(code).toBe(1)
-    expect(stderr).toContain(`✗ Couldn't add inertia-native. Run this yourself: npm install ${SPEC}`)
+    expect(stderr).toContain("✗ Couldn't add inertia-native. Run this yourself: npm install inertia-native@^1.0.0")
+    expect(stderr).toContain("✗ Couldn't add @inertia-native/cli. Run this yourself: npm install -D @inertia-native/cli@^1.0.0")
     expect(stdout).toContain('✓ Created resources/js/inertia-native.ts, imported in resources/js/app.tsx')
     expect(existsSync(join(dir, 'ios'))).toBe(true)
   })
 
-  it('installs the tarball that `npx --package <tarball>` ran it from', async () => {
+  it('adds the CLI tarball that `npx --package <tarball>` ran it from', async () => {
     const dir = project()
     const installer = fakeInstaller()
-    const env = { npm_command: 'exec', npm_config_package: '../pkg/inertia-native-1.0.0.tgz', PATH: '/bin' }
+    const env = { npm_command: 'exec', npm_config_package: '../pkg/inertia-native-cli-1.0.0.tgz', PATH: '/bin' }
     await cli(['init', 'ios'], dir, { exec: installer.exec, env })
-    expect(installer.calls[0].args).toEqual(['install', resolve(tmp, 'pkg/inertia-native-1.0.0.tgz')])
-    expect(installer.calls[0].env).toEqual({ npm_command: 'exec', PATH: '/bin' })
+    expect(installer.calls[1].args).toEqual(['install', '-D', resolve(tmp, 'pkg/inertia-native-cli-1.0.0.tgz')])
+    expect(installer.calls.map((c) => c.env)).toEqual([
+      { npm_command: 'exec', PATH: '/bin' },
+      { npm_command: 'exec', PATH: '/bin' },
+    ])
   })
 
   it.each([
-    [{}, SPEC],
-    [{ npm_command: 'exec', npm_config_package: '' }, SPEC],
-    [{ npm_command: 'exec', npm_config_package: 'inertia-native@next' }, 'inertia-native@next'],
-    [{ npm_command: 'exec', npm_config_package: 'inertia-native' }, SPEC],
-    [{ npm_command: 'exec', npm_config_package: 'other-cli' }, SPEC],
-    [{ npm_command: 'exec', npm_config_package: 'a.tgz\nb.tgz' }, SPEC],
-    [{ npm_command: 'exec', npm_config_package: '/abs/inertia-native-1.0.0.tgz' }, '/abs/inertia-native-1.0.0.tgz'],
+    [{}, '@inertia-native/cli@^1.0.0'],
+    [{ npm_command: 'exec', npm_config_package: '' }, '@inertia-native/cli@^1.0.0'],
+    [{ npm_command: 'exec', npm_config_package: '@inertia-native/cli@next' }, '@inertia-native/cli@next'],
+    [{ npm_command: 'exec', npm_config_package: '@inertia-native/cli' }, '@inertia-native/cli@^1.0.0'],
+    [{ npm_command: 'exec', npm_config_package: 'other-cli' }, '@inertia-native/cli@^1.0.0'],
+    [{ npm_command: 'exec', npm_config_package: 'a.tgz\nb.tgz' }, '@inertia-native/cli@^1.0.0'],
+    [{ npm_command: 'exec', npm_config_package: '/abs/inertia-native-cli-1.0.0.tgz' }, '/abs/inertia-native-cli-1.0.0.tgz'],
     [{ npm_command: 'exec', npm_config_package: 'https://x.dev/i.tgz' }, 'https://x.dev/i.tgz'],
-    [{ npm_command: 'run-script', npm_config_package: '/abs/i.tgz' }, SPEC],
+    [{ npm_command: 'run-script', npm_config_package: '/abs/i.tgz' }, '@inertia-native/cli@^1.0.0'],
   ])('install spec for %j is %s', (env, spec) => {
     expect(installSpec(env, '/app')).toBe(spec)
   })

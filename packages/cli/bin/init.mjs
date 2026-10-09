@@ -1,5 +1,5 @@
 // `inertia-native init [ios|android|both]`: adds inertia-native to an Inertia
-// app: npm package, entrypoint patch, Vite host for Android, native shells,
+// app: npm packages, entrypoint patch, Vite host for Android, native shells,
 // package.json scripts. Every step is idempotent.
 import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, join, relative, resolve } from 'node:path'
@@ -11,18 +11,23 @@ import { createPrompter } from './prompt.mjs'
 import { bundleIdFromName, invalid, nameFromDirectory, PLATFORMS, RULES, TEMPLATES, writeShell } from './shell.mjs'
 import { findViteConfig, HMR_HOST, patchViteConfig } from './vite.mjs'
 
+const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+
 export const PACKAGE = 'inertia-native'
-const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version
+export const CLI = manifest.name
+// The runtime major the templates are made for.
+export const RUNTIME_RANGE = manifest.peerDependencies[PACKAGE]
 
 export const INIT_USAGE = `Usage: npx inertia-native init [ios|android|both] [options]
 
 Sets up inertia-native in your Inertia app (the directory with package.json):
-adds the npm package, creates an inertia-native setup file imported by the
-file that calls createInertiaApp(), creates the native shells ios/ and
-android/, and adds "ios" and "android" scripts to package.json. For Android
-it also offers to set server.hmr.host to localhost in your Vite config:
-Android can't load scripts from Vite at [::1], its default address on macOS.
-In a terminal it asks for anything not given as a flag. Safe to re-run.
+adds the inertia-native package (and this CLI as a dev dependency), creates
+an inertia-native setup file imported by the file that calls
+createInertiaApp(), creates the native shells ios/ and android/, and adds
+"ios" and "android" scripts to package.json. For Android it also offers to
+set server.hmr.host to localhost in your Vite config: Android can't load
+scripts from Vite at [::1], its default address on macOS. In a terminal it
+asks for anything not given as a flag. Safe to re-run.
 
 Options:
   --name <name>        Name under the app icon.
@@ -33,7 +38,7 @@ Options:
                        ./artisan exists, otherwise http://localhost:3000
   --entrypoint <path>  File that calls createInertiaApp(). Default: searched for
                        under ${SEARCH_DIRS.join(', ')}
-  --skip-install       Don't add the inertia-native npm package
+  --skip-install       Don't add the npm packages
   --force              Replace existing ios/ and android/, after asking in a
                        terminal (default: skip them)
   -y, --yes            Don't ask; use the defaults and change the Vite config
@@ -207,25 +212,31 @@ export async function init(argv, io) {
   let failed = false
   const pm = packageManager(root)
 
-  // 3. Package
+  // 3. Packages
   const pkg = readPackageJson(root)
-  if (pkg.data.dependencies?.[PACKAGE] || pkg.data.devDependencies?.[PACKAGE]) {
-    out(`✓ ${PACKAGE} is already in package.json`)
-  } else {
-    const [cmd, args] = addCommand(pm, installSpec(env, cwd))
+  const packages = [
+    { name: PACKAGE, spec: `${PACKAGE}@${RUNTIME_RANGE}`, dev: false },
+    { name: CLI, spec: installSpec(env, cwd), dev: true },
+  ]
+  for (const { name, spec, dev } of packages) {
+    if (pkg.data.dependencies?.[name] || pkg.data.devDependencies?.[name]) {
+      out(`✓ ${name} is already in package.json`)
+      continue
+    }
+    const [cmd, args] = addCommand(pm, spec, dev)
     const command = [cmd, ...args].join(' ')
     if (flags['skip-install']) {
-      warn(`! Skipped adding ${PACKAGE} (--skip-install). Add it with: ${command}`)
+      warn(`! Skipped adding ${name} (--skip-install). Add it with: ${command}`)
+      continue
+    }
+    out(`› ${command}`)
+    const childEnv = { ...env }
+    delete childEnv.npm_config_package // set by `npx --package`, not meant for the install
+    if (exec(cmd, args, { cwd: root, env: childEnv }) === 0) {
+      out(`✓ Added ${name} to package.json (${pm})`)
     } else {
-      out(`› ${command}`)
-      const childEnv = { ...env }
-      delete childEnv.npm_config_package // set by `npx --package`, not meant for the install
-      if (exec(cmd, args, { cwd: root, env: childEnv }) === 0) {
-        out(`✓ Added ${PACKAGE} to package.json (${pm})`)
-      } else {
-        warn(`✗ Couldn't add ${PACKAGE}. Run this yourself: ${command}`)
-        failed = true
-      }
+      warn(`✗ Couldn't add ${name}. Run this yourself: ${command}`)
+      failed = true
     }
   }
 
@@ -319,17 +330,16 @@ export async function init(argv, io) {
 }
 
 /**
- * What to install: the package that `npx --package <spec>` ran this CLI from
- * (a tarball or a version), else this version of inertia-native from the
- * registry, whose templates were just copied.
+ * Which CLI to add as a dev dependency: the one `npx --package <spec>` ran
+ * (a tarball or a version), else this version's major from the registry.
  * @param {Record<string, string | undefined>} env
  * @param {string} cwd
  */
 export function installSpec(env, cwd) {
-  const own = `${PACKAGE}@^${VERSION}`
+  const fallback = `${CLI}@^${manifest.version}`
   const spec = env.npm_config_package
-  if (env.npm_command !== 'exec' || !spec || /[\s,]/.test(spec)) return own
-  if (/^inertia-native@[\w.^~<>=*-]+$/.test(spec)) return spec
+  if (env.npm_command !== 'exec' || !spec || /[\s,]/.test(spec)) return fallback
+  if (/^@inertia-native\/cli@[\w.^~<>=*-]+$/.test(spec)) return spec
   if (/\.(tgz|tar\.gz)$/.test(spec)) return /^https?:\/\//.test(spec) ? spec : resolve(cwd, spec.replace(/^file:/, ''))
-  return own
+  return fallback
 }

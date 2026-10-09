@@ -55,10 +55,11 @@ export function packageManager(root) {
  * The install command for a package spec.
  * @param {PackageManager} pm
  * @param {string} spec
+ * @param {boolean} [dev] as a dev dependency
  * @returns {[string, string[]]}
  */
-export function addCommand(pm, spec) {
-  return [pm, [pm === 'npm' ? 'install' : 'add', spec]]
+export function addCommand(pm, spec, dev = false) {
+  return [pm, [pm === 'npm' ? 'install' : 'add', ...(dev ? ['-D'] : []), spec]]
 }
 
 /**
