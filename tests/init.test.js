@@ -748,3 +748,13 @@ it('npm pack ships the bin and the complete templates', () => {
   expect(files.find((f) => f.path === 'templates/android/gradlew').mode & 0o111).toBe(0o111)
   expect(files.find((f) => f.path === 'bin/inertia-native.mjs').mode & 0o111).toBe(0o111)
 }, 30_000)
+
+it('ships the official Gradle 9.4.1 wrapper and pins its distribution checksum', () => {
+  // Checksums from services.gradle.org/distributions/gradle-9.4.1-{bin.zip,wrapper.jar}.sha256
+  const wrapper = join(ROOT, 'templates', 'android', 'gradle', 'wrapper')
+  const properties = readFileSync(join(wrapper, 'gradle-wrapper.properties'), 'utf8')
+  expect(properties).toContain('distributions/gradle-9.4.1-bin.zip')
+  expect(properties).toContain('distributionSha256Sum=2ab2958f2a1e51120c326cad6f385153bb11ee93b3c216c5fccebfdfbb7ec6cb')
+  const jar = createHash('sha256').update(readFileSync(join(wrapper, 'gradle-wrapper.jar'))).digest('hex')
+  expect(jar).toBe('55243ef57851f12b070ad14f7f5bb8302daceeebc5bce5ece5fa6edb23e1145c')
+})
