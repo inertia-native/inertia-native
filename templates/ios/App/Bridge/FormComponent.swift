@@ -1,3 +1,6 @@
+// From the Hotwire Native iOS demo app. Copyright (c) 2024 Hotwire, MIT License:
+// https://github.com/hotwired/hotwire-native-ios/blob/main/LICENSE
+
 import Foundation
 import HotwireNative
 import UIKit

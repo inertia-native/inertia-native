@@ -1,3 +1,6 @@
+// From the Hotwire Native Android demo app. Copyright (c) 2024 37signals LLC,
+// MIT License: https://github.com/hotwired/hotwire-native-android/blob/main/LICENSE
+
 package dev.inertianative.app.bridge
 
 import android.annotation.SuppressLint
