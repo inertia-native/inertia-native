@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "files": [
+    "app/build.gradle.kts",
+    "app/src/main/res/values/strings.xml"
+  ]
+}

@@ -26,6 +26,9 @@
     "src"
   ],
   "sideEffects": false,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
@@ -75,6 +78,7 @@
   },
   "devDependencies": {
     "@inertiajs/core": "^3.0.0",
+    "@types/node": "^20.19.43",
     "jsdom": "^29.1.1",
     "oxlint": "^1.0.0",
     "svelte": "^5.0.0",

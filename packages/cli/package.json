@@ -1,0 +1,56 @@
+{
+  "name": "@inertia-native/cli",
+  "version": "1.0.0",
+  "description": "Create and run the iOS and Android apps of an Inertia app that uses inertia-native",
+  "type": "module",
+  "exports": {
+    ".": "./bin/cli.mjs"
+  },
+  "bin": {
+    "inertia-native": "bin/inertia-native.mjs"
+  },
+  "files": [
+    "bin",
+    "templates"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc",
+    "lint": "oxlint -c ../../.oxlintrc.json bin/ tests/",
+    "prepublishOnly": "npm run lint && npm run typecheck && npm test"
+  },
+  "keywords": [
+    "inertia-native",
+    "hotwire-native",
+    "inertia",
+    "ios",
+    "android",
+    "cli"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/inertia-native/inertia-native.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://inertia-native.dev",
+  "bugs": "https://github.com/inertia-native/inertia-native/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.12"
+  },
+  "peerDependencies": {
+    "inertia-native": "^1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "inertia-native": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.8.1",
+    "package-manager-detector": "^1.9.0"
+  }
+}

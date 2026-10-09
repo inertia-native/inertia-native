@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">__APP_NAME__</string>
+    <string name="menu_progress">Loading…</string>
+    <string name="menu_more">More</string>
+</resources>

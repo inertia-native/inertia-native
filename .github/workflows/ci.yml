@@ -19,9 +19,9 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm test
+      - run: npm run lint --workspaces --include-workspace-root --if-present
+      - run: npm run typecheck --workspaces --include-workspace-root --if-present
+      - run: npm test --workspaces --include-workspace-root --if-present
 
   # The lowest @inertiajs/core the peer range allows.
   min-inertia:

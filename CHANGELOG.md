@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `npm init inertia-native` sets up an existing Inertia app: installs the
+  package and the new `@inertia-native/cli`, adds an `inertia-native.ts`
+  setup file imported by the entrypoint and creates `ios/` and `android/`
+  Hotwire Native apps from templates shipped in the CLI.
+- `inertia-native run ios|android` (from `@inertia-native/cli`) builds the app
+  and launches it in a simulator, emulator or on a device.
+  `inertia-native open ios|android` opens it in Xcode or Android Studio.
+
 ### Fixed
 
 - The first screen of a web view (the root at launch, the first modal on iOS)

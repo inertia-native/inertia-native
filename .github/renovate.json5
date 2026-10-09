@@ -1,0 +1,41 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['config:recommended'],
+  // Toolchains of the native templates and the workflows. Add 'npm' to also
+  // manage package.json.
+  enabledManagers: ['github-actions', 'gradle', 'gradle-wrapper', 'custom.regex'],
+  customManagers: [
+    {
+      // Hotwire Native iOS is pinned in the Xcode project's Package.resolved,
+      // which no built-in manager reads. This bumps version and revision
+      // together; the requirement in project.pbxproj ("up to next major")
+      // already allows minor and patch releases. For a new major, run
+      // .github/scripts/bump-hotwire-ios.sh instead.
+      customType: 'regex',
+      managerFilePatterns: ['/^packages/cli/templates/ios/App\\.xcodeproj/project\\.xcworkspace/xcshareddata/swiftpm/Package\\.resolved$/'],
+      matchStrings: [
+        '"location" : "https://github\\.com/(?<depName>hotwired/hotwire-native-ios)",\\s*"state" : \\{\\s*"revision" : "(?<currentDigest>[0-9a-f]{40})",\\s*"version" : "(?<currentValue>[^"]+)"',
+      ],
+      datasourceTemplate: 'github-tags',
+    },
+  ],
+  packageRules: [
+    {
+      // One PR for both platforms, so iOS and Android move together.
+      groupName: 'Hotwire Native',
+      matchPackageNames: ['hotwired/hotwire-native-ios', 'dev.hotwire:*'],
+    },
+    {
+      matchPackageNames: ['hotwired/hotwire-native-ios'],
+      matchUpdateTypes: ['major'],
+      enabled: false,
+    },
+    {
+      // CI builds the template with the JDK Android Studio bundles; bump it
+      // by hand when Android Studio does.
+      matchDepNames: ['java-jdk'],
+      matchUpdateTypes: ['major'],
+      enabled: false,
+    },
+  ],
+}
