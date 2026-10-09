@@ -1,7 +1,4 @@
 // Finds the Inertia entrypoint and adds the inertia-native setup to it.
-// The patch rules are a port of the Laravel installer's EntrypointPatcher
-// (inertia-native/laravel, src/Installer/EntrypointPatcher.php), plus quote
-// style: the import uses the quotes of the import it follows.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { basename, join, relative } from 'node:path'
 

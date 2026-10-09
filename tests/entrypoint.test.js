@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { findEntrypoints, patchEntrypoint } from '../bin/entrypoint.mjs'
 
-// Ported from the Laravel installer's EntrypointPatcherTest, plus quote style.
 describe('patchEntrypoint', () => {
   it('patches the Laravel React starter kit entrypoint', () => {
     const source = `import { createInertiaApp } from '@inertiajs/react';
