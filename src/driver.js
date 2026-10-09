@@ -5,6 +5,9 @@ import { log } from './log.js'
 // entry to restore (cold boot onto this screen) → fall back to a fresh request.
 const RESTORE_POPSTATE_TIMEOUT_MS = 250
 
+// Longest a cold boot waits for Inertia's first page before reporting anyway.
+const FIRST_PAGE_TIMEOUT_MS = 4000
+
 // Visits that update the current page rather than open a new one: partial
 // reloads, polls, deferred props, filters. Native would run them as a full
 // visit and drop these options.
@@ -41,6 +44,10 @@ export default class InertiaDriver {
   // with. Inertia hands the same object to the per-visit callback and then to
   // the router event, so identity tells it apart from an async visit's.
   #nativeFailure = null
+  #renderedFirstPage
+  firstPageRendered = new Promise((resolve) => {
+    this.#renderedFirstPage = resolve
+  })
 
   constructor(session, { proposeFormRedirects = false } = {}) {
     this.session = session
@@ -59,7 +66,34 @@ export default class InertiaDriver {
     log('inertia', 'driver started')
     this.#trackHistoryDepth()
     this.#interceptLocationVisits()
+    this.#watchFirstPage()
     this.#setupInertiaListeners()
+  }
+
+  // The first navigate is Inertia's initial page.
+  #watchFirstPage() {
+    if (!document.querySelector('script[data-page]')) {
+      this.#renderedFirstPage()
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      log('inertia', `no first page after ${FIRST_PAGE_TIMEOUT_MS}ms, reporting the cold boot anyway`)
+      this.#renderedFirstPage()
+    }, FIRST_PAGE_TIMEOUT_MS)
+
+    const rendered = () => {
+      clearTimeout(timeout)
+      log('inertia', 'first page rendered')
+      this.#renderedFirstPage()
+    }
+
+    const stop = router.on('navigate', () => {
+      stop()
+      // <Head> can set the title after turbo.js's own two frames; hidden views never paint.
+      if (document.hidden) rendered()
+      else requestAnimationFrame(() => requestAnimationFrame(rendered))
+    })
   }
 
   // Inertia follows a location visit with window.location, out of native's

@@ -16,6 +16,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and launches it in a simulator, emulator or on a device.
   `inertia-native open ios|android` opens it in Xcode or Android Studio.
 
+### Fixed
+
+- The first screen of a web view (the root at launch, the first modal on iOS)
+  shows the page's `<Head>` title instead of the layout's `<title>`. The cold
+  boot is reported to native after Inertia's first page renders, or after 4 s
+  at most.
+
 ## [1.0.0] — 2026-10-07
 
 First stable release. Upgrading from `0.1.0-beta.2`: rename
