@@ -71,9 +71,9 @@ function fakePrompter(answers = {}) {
       asked.push({ label, choices, fallback })
       return answers[label] ?? fallback
     },
-    async confirm(label) {
+    async confirm(label, fallback = true) {
       asked.push({ label, confirm: true })
-      return answers[label] ?? true
+      return answers[label] ?? fallback
     },
     close() {},
   }
@@ -497,6 +497,9 @@ describe('prompts', () => {
       input.write(typed)
       expect(await confirmed).toBe(expected)
     }
+    const declined = prompter.confirm('Replace?', false)
+    input.write('\n')
+    expect(await declined).toBe(false)
     const retried = prompter.confirm('Really?')
     input.write('maybe\n')
     await new Promise((r) => setTimeout(r, 10))
@@ -508,6 +511,7 @@ describe('prompts', () => {
     expect(shown).toContain('? Platforms [both/ios/android] (both) › ')
     expect(shown).toContain('  2) b/y.ts\n')
     expect(shown).toContain('? Change it? (Y/n) › ')
+    expect(shown).toContain('? Replace? (y/N) › ')
     expect(shown).toContain('  Answer y or n\n')
   })
 
@@ -662,6 +666,29 @@ describe('existing shells', () => {
     expect(stdout).toContain('✓ Created ios/ (replaced)')
     expect(existsSync(join(dir, 'ios', 'mine.txt'))).toBe(false)
     expect(read(dir, 'ios/App.xcodeproj/project.pbxproj')).toContain('Acme Shop')
+  })
+
+  it('asks before replacing in a terminal, defaulting to no', async () => {
+    const dir = project('acme-shop', { 'ios/mine.txt': 'keep me', 'android/mine.txt': 'keep me' })
+    const prompter = fakePrompter()
+    const { code, stderr } = await cli(['init', '--force'], dir, { prompter })
+    expect(code).toBe(0)
+    expect(prompter.asked.map((q) => q.label)).toEqual(['Platforms', 'Replace ios/ and android/? Everything in them is deleted.'])
+    expect(stderr).toContain('! Skipped ios/: it already exists\n')
+    expect(listing(join(dir, 'ios'))).toEqual(['mine.txt'])
+    expect(listing(join(dir, 'android'))).toEqual(['mine.txt'])
+  })
+
+  it('replaces on yes in a terminal, and without asking with --yes', async () => {
+    const question = 'Replace ios/? Everything in it is deleted.'
+    const dir = project('acme-shop', { 'ios/mine.txt': 'stale' })
+    await cli(['init', 'ios', '--force'], dir, { prompter: fakePrompter({ [question]: true }) })
+    expect(existsSync(join(dir, 'ios', 'mine.txt'))).toBe(false)
+    writeFileSync(join(dir, 'ios', 'mine.txt'), 'stale')
+    const prompter = fakePrompter()
+    await cli(['init', 'ios', '--force', '--yes'], dir, { prompter })
+    expect(prompter.asked).toEqual([])
+    expect(existsSync(join(dir, 'ios', 'mine.txt'))).toBe(false)
   })
 })
 

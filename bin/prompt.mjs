@@ -7,8 +7,8 @@ import { createInterface } from 'node:readline/promises'
  *   Asks for a value; empty input takes `fallback`; `check` returns an error to re-ask.
  * @property {(label: string, choices: string[], fallback: string) => Promise<string>} select
  *   Asks to pick one of `choices` by number or by name.
- * @property {(label: string) => Promise<boolean>} confirm
- *   Asks a yes/no question; empty input means yes.
+ * @property {(label: string, fallback?: boolean) => Promise<boolean>} confirm
+ *   Asks a yes/no question; empty input takes `fallback` (yes by default).
  * @property {() => void} close
  */
 
@@ -48,10 +48,11 @@ export function createPrompter(input, output) {
         write(`  Pick one of: ${numbered ? hint : choices.join(', ')}\n`)
       }
     },
-    async confirm(label) {
+    async confirm(label, fallback = true) {
       for (;;) {
-        const answer = (await ask(`? ${label} (Y/n) › `)).trim().toLowerCase()
-        if (answer === '' || answer === 'y' || answer === 'yes') return true
+        const answer = (await ask(`? ${label} (${fallback ? 'Y/n' : 'y/N'}) › `)).trim().toLowerCase()
+        if (answer === '') return fallback
+        if (answer === 'y' || answer === 'yes') return true
         if (answer === 'n' || answer === 'no') return false
         write('  Answer y or n\n')
       }

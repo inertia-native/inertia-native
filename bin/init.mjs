@@ -33,7 +33,8 @@ Options:
   --entrypoint <path>  File that calls createInertiaApp(). Default: searched for
                        under ${SEARCH_DIRS.join(', ')}
   --skip-install       Don't add the inertia-native npm package
-  --force              Replace existing ios/ and android/ (default: skip them)
+  --force              Replace existing ios/ and android/, after asking in a
+                       terminal (default: skip them)
   -y, --yes            Don't ask; use the defaults and change the Vite host
   -h, --help           Show this help`
 
@@ -132,6 +133,7 @@ export async function init(argv, io) {
 
   // Questions first, so nothing is written until all answers are in.
   let platforms, entrypoint, values, vite
+  let replace = false
   try {
     // 1. Platforms
     const choice = positionals[0] ?? (prompter ? await prompter.select('Platforms', ['both', 'ios', 'android'], 'both') : 'both')
@@ -151,8 +153,17 @@ export async function init(argv, io) {
       }
     }
 
+    // Existing shells: replaced only with --force, after asking.
+    const existing = platforms.filter((platform) => existsSync(join(root, platform))).map((platform) => `${platform}/`)
+    if (flags.force && existing.length) {
+      replace =
+        flags.yes ||
+        !prompter ||
+        (await prompter.confirm(`Replace ${existing.join(' and ')}? Everything in ${existing.length > 1 ? 'them' : 'it'} is deleted.`, false))
+    }
+
     // Shell values, only needed when a shell will be written.
-    if (platforms.some((platform) => flags.force || !existsSync(join(root, platform)))) {
+    if (platforms.some((platform) => replace || !existsSync(join(root, platform)))) {
       const derivedName = nameFromDirectory(basename(root))
       let name = flags.name
       if (name === undefined) {
@@ -256,8 +267,8 @@ export async function init(argv, io) {
   const written = []
   for (const platform of platforms) {
     const target = join(root, platform)
-    if (existsSync(target) && !flags.force) {
-      warn(`! Skipped ${show(target)}/: it already exists (--force replaces it)`)
+    if (existsSync(target) && !replace) {
+      warn(`! Skipped ${show(target)}/: it already exists${flags.force ? '' : ' (--force replaces it)'}`)
       continue
     }
     const replaced = existsSync(target)
