@@ -1,7 +1,9 @@
+import { once } from 'node:events'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { basename, isAbsolute, join } from 'node:path'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { main } from '../bin/cli.mjs'
 import {
@@ -26,18 +28,41 @@ afterEach(() => {
   rmSync(tmp, { recursive: true, force: true })
 })
 
-async function cli(args, cwd = tmp) {
+/**
+ * Runs the CLI. `captures` and `spawns` script the processes it starts, by
+ * command line (the command, or an absolute one's basename, then its
+ * arguments): a result, or a function returning one. `calls` lists the
+ * command lines in order, spawns with a `$ ` in front.
+ */
+async function cli(args, { os = 'darwin', env = {}, captures = {}, spawns = {} } = {}) {
   let stdout = ''
   let stderr = ''
+  const calls = []
+  const answer = (table, line, logged, ...rest) => {
+    calls.push(logged)
+    if (!(line in table)) throw new Error(`Unexpected command: ${line}`)
+    return typeof table[line] === 'function' ? table[line](...rest) : table[line]
+  }
+  const line = (cmd, args) => [isAbsolute(cmd) ? basename(cmd) : cmd, ...args].join(' ')
   const code = await main(args, {
-    cwd,
-    env: {},
+    cwd: tmp,
+    env,
+    os,
     stdin: /** @type {any} */ ({ isTTY: false }),
     stdout: { write: (s) => (stdout += s) },
     stderr: { write: (s) => (stderr += s) },
     exec: () => 0,
+    capture: (cmd, args) => ({ ok: true, stdout: '', stderr: '', ...answer(captures, line(cmd, args), line(cmd, args)) }),
+    spawn: async (cmd, args, options) => answer(spawns, line(cmd, args), `$ ${line(cmd, args)}`, options),
   })
-  return { code, stdout, stderr }
+  return { code, stdout, stderr, calls }
+}
+
+/** A file in tmp. */
+function file(path, content = '') {
+  mkdirSync(join(tmp, path, '..'), { recursive: true })
+  writeFileSync(join(tmp, path), content)
+  return join(tmp, path)
 }
 
 const sim = (name, udid, state = 'Shutdown') => ({ name, udid, state, isAvailable: true })
@@ -281,11 +306,6 @@ it('reads the URL baked into generated shells', async () => {
 })
 
 describe('reversePorts', () => {
-  const file = (path, content = '') => {
-    mkdirSync(join(tmp, path, '..'), { recursive: true })
-    writeFileSync(join(tmp, path), content)
-  }
-
   it('forwards a local app URL port, defaulting to 80/443', () => {
     expect(reversePorts(tmp, 'http://localhost:3000')).toEqual({ ports: [3000], warning: undefined })
     expect(reversePorts(tmp, 'http://127.0.0.1')).toEqual({ ports: [80], warning: undefined })
@@ -391,5 +411,216 @@ describe('run errors', () => {
     expect(code).toBe(0)
     expect(stdout).toContain('--avd <name>')
     expect(stdout).toContain('--list')
+  })
+})
+
+describe('run', () => {
+  // A dev server, so that run doesn't warn that nothing answers.
+  let server
+  let url
+  let port
+  beforeAll(async () => {
+    server = createServer((req, res) => res.end()).listen(0)
+    await once(server, 'listening')
+    port = server.address().port
+    url = `http://localhost:${port}`
+  })
+  afterAll(() => {
+    server.closeAllConnections()
+    server.close()
+  })
+
+  describe('ios', () => {
+    const app = () => join(tmp, 'ios', 'build', 'Build', 'Products', 'Debug-iphonesimulator', 'App.app')
+    const xcodebuild = 'xcodebuild -project ios/App.xcodeproj -scheme App -configuration Debug -destination id=udid-17 -derivedDataPath ios/build -quiet build'
+    const captures = (state, overrides = {}) => ({
+      'xcode-select -p': { stdout: `${join(tmp, 'Xcode.app', 'Contents', 'Developer')}\n` },
+      'xcrun simctl list devices available --json': {
+        stdout: JSON.stringify({ devices: { 'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [sim('iPad Pro', 'ipad'), sim('iPhone 17', 'udid-17', state)] } }),
+      },
+      'xcrun simctl boot udid-17': {},
+      'open -a Simulator --args -CurrentDeviceUDID udid-17': {},
+      [`plutil -extract CFBundleIdentifier raw -o - ${app()}/Info.plist`]: { stdout: 'com.acme.shop\n' },
+      'xcrun simctl bootstatus udid-17 -b': {},
+      [`xcrun simctl install udid-17 ${app()}`]: {},
+      'xcrun simctl launch --terminate-running-process udid-17 com.acme.shop': { stdout: 'com.acme.shop: 4242\n' },
+      ...overrides,
+    })
+    const runIos = (state, { captures: overrides, status = 0 } = {}) =>
+      cli(['run', 'ios'], { captures: captures(state, overrides), spawns: { [xcodebuild]: status } })
+    beforeEach(async () => {
+      await cli(['init', 'ios', '--skip-install', '--url', url, '--bundle-id', 'com.acme.shop'])
+    })
+
+    it('builds, installs and launches on the booted simulator', async () => {
+      const { code, stdout, stderr, calls } = await runIos('Booted')
+      expect(stderr).toBe('')
+      expect(code).toBe(0)
+      expect(calls).toEqual([
+        'xcode-select -p',
+        'xcrun simctl list devices available --json',
+        'open -a Simulator --args -CurrentDeviceUDID udid-17',
+        `$ ${xcodebuild}`,
+        `plutil -extract CFBundleIdentifier raw -o - ${app()}/Info.plist`,
+        'xcrun simctl bootstatus udid-17 -b',
+        `xcrun simctl install udid-17 ${app()}`,
+        'xcrun simctl launch --terminate-running-process udid-17 com.acme.shop',
+      ])
+      expect(stdout).toBe(
+        '✓ Simulator: iPhone 17 (iOS 26.5)\n' +
+          '› xcodebuild (the first build downloads Swift packages and takes a few minutes)\n' +
+          '✓ Launched com.acme.shop on iPhone 17\n',
+      )
+    })
+
+    it('boots the simulator first when none is booted', async () => {
+      const { code, calls } = await runIos('Shutdown')
+      expect(code).toBe(0)
+      expect(calls.slice(1, 4)).toEqual(['xcrun simctl list devices available --json', 'xcrun simctl boot udid-17', 'open -a Simulator --args -CurrentDeviceUDID udid-17'])
+    })
+
+    it('stops when xcodebuild fails', async () => {
+      const { code, stderr, calls } = await runIos('Booted', { status: 65 })
+      expect(code).toBe(1)
+      expect(stderr).toBe('✗ xcodebuild failed; see the errors above.\n')
+      expect(calls.at(-1)).toBe(`$ ${xcodebuild}`)
+    })
+
+    it('reports install and launch failures', async () => {
+      const install = `xcrun simctl install udid-17 ${app()}`
+      const notInstalled = await runIos('Booted', { captures: { [install]: { ok: false, stderr: 'No space left\n' } } })
+      expect(notInstalled.code).toBe(1)
+      expect(notInstalled.stderr).toBe("✗ Couldn't install on iPhone 17: No space left\n")
+      expect(notInstalled.calls.at(-1)).toBe(install)
+
+      const launch = 'xcrun simctl launch --terminate-running-process udid-17 com.acme.shop'
+      const notLaunched = await runIos('Booted', { captures: { [launch]: { ok: false, stderr: 'FBSOpenApplicationError\n' } } })
+      expect(notLaunched.code).toBe(1)
+      expect(notLaunched.stderr).toBe("✗ Couldn't launch com.acme.shop: FBSOpenApplicationError\n")
+    })
+  })
+
+  describe('android', () => {
+    const am = 'adb -s emulator-5554 shell am start -n com.acme.shop/dev.inertianative.app.MainActivity'
+    const connected = 'List of devices attached\nemulator-5554          device product:sdk_gphone64_arm64 model:sdk_gphone64_arm64 transport_id:1\n'
+    let env
+    beforeEach(async () => {
+      file('sdk/platform-tools/adb')
+      file('jdk/bin/java')
+      env = { ANDROID_HOME: join(tmp, 'sdk'), JAVA_HOME: join(tmp, 'jdk') }
+      await cli(['init', 'android', '--skip-install', '--url', url, '--bundle-id', 'com.acme.shop'])
+    })
+    const captures = (overrides = {}) => ({
+      'adb -s emulator-5554 emu avd name': { stdout: 'pixel\r\nOK\r\n' },
+      [`adb -s emulator-5554 reverse tcp:${port} tcp:${port}`]: {},
+      'adb -s emulator-5554 reverse tcp:5173 tcp:5173': {},
+      [am]: { stdout: 'Starting: Intent { cmp=com.acme.shop/dev.inertianative.app.MainActivity }\n' },
+      ...overrides,
+    })
+
+    it('installs and launches on the connected device, forwarding the dev server port', async () => {
+      const gradle = []
+      const { code, stdout, stderr, calls } = await cli(['run', 'android'], {
+        os: 'linux',
+        env,
+        captures: captures({ 'adb devices -l': { stdout: connected } }),
+        spawns: { './gradlew installDebug': (options) => (gradle.push(options), 0) },
+      })
+      expect(stderr).toBe('')
+      expect(code).toBe(0)
+      expect(calls).toEqual([
+        'adb devices -l',
+        'adb -s emulator-5554 emu avd name',
+        '$ ./gradlew installDebug',
+        `adb -s emulator-5554 reverse tcp:${port} tcp:${port}`,
+        am,
+      ])
+      expect(gradle).toEqual([
+        { cwd: join(tmp, 'android'), env: { ...env, ANDROID_SERIAL: 'emulator-5554' } },
+      ])
+      expect(stdout).toBe(
+        `✓ Android SDK: ${join(tmp, 'sdk')}\n` +
+          `✓ JDK: ${join(tmp, 'jdk')}\n` +
+          '› ./gradlew installDebug (emulator-5554)\n' +
+          `✓ adb reverse tcp:${port} (localhost on emulator-5554 reaches this machine)\n` +
+          '✓ Launched com.acme.shop on emulator-5554\n',
+      )
+    })
+
+    it("warns about the ports adb can't forward and launches anyway", async () => {
+      file('vite.config.ts')
+      const { code, stdout, stderr } = await cli(['run', 'android'], {
+        os: 'linux',
+        env,
+        captures: captures({ 'adb devices -l': { stdout: connected }, 'adb -s emulator-5554 reverse tcp:5173 tcp:5173': { ok: false } }),
+        spawns: { './gradlew installDebug': 0 },
+      })
+      expect(code).toBe(0)
+      expect(stdout).toContain(`✓ adb reverse tcp:${port} (localhost on emulator-5554 reaches this machine)\n`)
+      expect(stderr).toBe("! Couldn't run adb reverse tcp:5173 tcp:5173\n")
+      expect(stdout).toContain('✓ Launched com.acme.shop on emulator-5554')
+    })
+
+    const booting = (overrides) =>
+      captures({
+        'adb devices -l': { stdout: 'List of devices attached\n' },
+        'emulator -list-avds': { stdout: 'pixel\n' },
+        'adb devices': { stdout: 'List of devices attached\nemulator-5554\tdevice\n' },
+        ...overrides,
+      })
+
+    it('builds while the emulator boots', async () => {
+      let built
+      const { code, stdout, stderr, calls } = await cli(['run', 'android'], {
+        os: 'linux',
+        env,
+        captures: booting({
+          // Answers only once the build has started, and lets it finish.
+          'adb -s emulator-5554 shell getprop sys.boot_completed': () => (built(0), { stdout: '1\n' }),
+        }),
+        spawns: {
+          'emulator -avd pixel': (options) => (expect(options).toEqual({ background: true }), new Promise(() => {})),
+          './gradlew assembleDebug': () => new Promise((resolve) => (built = resolve)),
+          './gradlew installDebug': 0,
+        },
+      })
+      expect(stderr).toBe('')
+      expect(code).toBe(0)
+      expect(calls.slice(0, 8)).toEqual([
+        'adb devices -l',
+        'emulator -list-avds',
+        '$ emulator -avd pixel',
+        '$ ./gradlew assembleDebug',
+        'adb devices',
+        'adb -s emulator-5554 emu avd name',
+        'adb -s emulator-5554 shell getprop sys.boot_completed',
+        '$ ./gradlew installDebug',
+      ])
+      expect(stdout).toContain('› Starting emulator pixel\n› ./gradlew assembleDebug')
+      expect(stdout).toContain('✓ Emulator pixel booted (emulator-5554)\n› ./gradlew installDebug (emulator-5554)\n')
+    })
+
+    it('stops when the build fails while the emulator boots', async () => {
+      const { code, stderr, calls } = await cli(['run', 'android'], {
+        os: 'linux',
+        env,
+        captures: booting({ 'adb -s emulator-5554 shell getprop sys.boot_completed': { stdout: '\n' } }),
+        spawns: { 'emulator -avd pixel': () => new Promise(() => {}), './gradlew assembleDebug': 1 },
+      })
+      expect(code).toBe(1)
+      expect(stderr).toBe('✗ Gradle build failed; see the errors above.\n')
+      expect(calls).not.toContain('$ ./gradlew installDebug')
+    })
+
+    it('fails when the emulator exits', async () => {
+      const { code, stderr } = await cli(['run', 'android'], {
+        os: 'linux',
+        env,
+        captures: booting(),
+        spawns: { 'emulator -avd pixel': 1, './gradlew assembleDebug': 0 },
+      })
+      expect(code).toBe(1)
+      expect(stderr).toBe("✗ Couldn't start pixel: the emulator exited (code 1). Try starting it from Android Studio's Device Manager.\n")
+    })
   })
 })
