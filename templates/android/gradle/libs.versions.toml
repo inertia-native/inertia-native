@@ -1,13 +1,16 @@
 [versions]
 agp = "9.2.1"
-kotlin = "2.2.0"
+# The Kotlin Gradle plugin that AGP 9.2.1's built-in Kotlin applies.
+kotlin = "2.2.10"
 hotwire = "1.3.1"
-kotlinxSerializationJson = "1.8.0"
-coreKtx = "1.10.1"
-appcompat = "1.6.1"
-material = "1.10.0"
-activityKtx = "1.8.0"
-constraintlayout = "2.1.4"
+# The versions Hotwire Native 1.3.1 resolves to: lower pins get upgraded
+# anyway. Check with ./gradlew :app:dependencies after bumping Hotwire.
+kotlinxSerializationJson = "1.8.1"
+coreKtx = "1.16.0"
+appcompat = "1.7.0"
+material = "1.12.0"
+activityKtx = "1.10.1"
+constraintlayout = "2.2.1"
 
 [libraries]
 androidx-activity-ktx = { group = "androidx.activity", name = "activity-ktx", version.ref = "activityKtx" }
