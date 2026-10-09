@@ -23,6 +23,7 @@ final class OverflowMenuComponent: BridgeComponent {
 
     // MARK: Private
 
+    private weak var overflowBarButtonItem: UIBarButtonItem?
     private var viewController: UIViewController? {
         delegate?.destination as? UIViewController
     }
@@ -39,11 +40,13 @@ final class OverflowMenuComponent: BridgeComponent {
             overflowAction()
         }
 
-        viewController.navigationItem.rightBarButtonItem = UIBarButtonItem(
+        let item = UIBarButtonItem(
             title: data.label,
             image: .init(systemName: "ellipsis.circle"),
             primaryAction: action
         )
+        viewController.navigationItem.showBridgeButton(item, on: .right, replacing: overflowBarButtonItem)
+        overflowBarButtonItem = item
     }
 
     private func overflowAction() {

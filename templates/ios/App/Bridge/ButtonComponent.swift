@@ -23,6 +23,7 @@ final class ButtonComponent: BridgeComponent {
 
     // MARK: Private
 
+    private weak var barButtonItem: UIBarButtonItem?
     private var viewController: UIViewController? {
         delegate?.destination as? UIViewController
     }
@@ -35,13 +36,9 @@ final class ButtonComponent: BridgeComponent {
             reply(to: Event.connect.rawValue)
         }
         let item = UIBarButtonItem(title: data.title, primaryAction: action)
-
-        switch data.side {
-        case "left":
-            viewController?.navigationItem.leftBarButtonItem = item
-        default:
-            viewController?.navigationItem.rightBarButtonItem = item
-        }
+        let side: UINavigationItem.BridgeButtonSide = data.side == "left" ? .left : .right
+        viewController?.navigationItem.showBridgeButton(item, on: side, replacing: barButtonItem)
+        barButtonItem = item
     }
 }
 

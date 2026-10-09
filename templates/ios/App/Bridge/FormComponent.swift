@@ -53,7 +53,7 @@ final class FormComponent: BridgeComponent {
         }
 
         let item = UIBarButtonItem(title: title, primaryAction: action)
-        viewController.navigationItem.rightBarButtonItem = item
+        viewController.navigationItem.showBridgeButton(item, on: .right, replacing: submitBarButtonItem)
         submitBarButtonItem = item
     }
 }
