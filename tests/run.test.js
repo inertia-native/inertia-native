@@ -363,8 +363,8 @@ describe('findAndroidSdk', () => {
 
 it('uses JAVA_HOME when it has bin/java', () => {
   mkdirSync(join(tmp, 'jdk', 'bin'), { recursive: true })
-  writeFileSync(join(tmp, 'jdk', 'bin', process.platform === 'win32' ? 'java.exe' : 'java'), '')
-  expect(findJdk({ JAVA_HOME: join(tmp, 'jdk') })).toEqual({ home: join(tmp, 'jdk') })
+  writeFileSync(join(tmp, 'jdk', 'bin', 'java'), '')
+  expect(findJdk({ JAVA_HOME: join(tmp, 'jdk') }, { os: 'linux' })).toEqual({ home: join(tmp, 'jdk') })
 })
 
 describe('run errors', () => {

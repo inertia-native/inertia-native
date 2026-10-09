@@ -16,11 +16,11 @@ Run \`npx inertia-native <command> --help\` for options.`
 
 /**
  * @param {string[]} argv
- * @param {Partial<import('./init.mjs').IO>} [overrides]
+ * @param {Partial<import('./run.mjs').RunIO>} [overrides]
  * @returns {Promise<number>}
  */
 export async function main(argv, overrides = {}) {
-  /** @type {import('./init.mjs').IO} */
+  /** @type {import('./run.mjs').RunIO} */
   const io = {
     cwd: process.cwd(),
     env: process.env,
@@ -33,6 +33,19 @@ export async function main(argv, overrides = {}) {
       spawn(cmd, args, { cwd, env, detached: true, stdio: 'ignore' }).on('error', () => {}).unref()
       return 0
     },
+    capture: (cmd, args) => {
+      const result = spawnSync(cmd, args, { encoding: 'utf8' })
+      return { ok: result.status === 0, stdout: String(result.stdout ?? ''), stderr: String(result.stderr ?? result.error?.message ?? '') }
+    },
+    spawn: (cmd, args, { cwd, env, background = false } = {}) =>
+      new Promise((resolve) => {
+        const child = background
+          ? spawn(cmd, args, { detached: true, stdio: 'ignore' })
+          : spawn(cmd, args, { cwd, env, stdio: 'inherit', shell: process.platform === 'win32' })
+        child.on('error', () => resolve(127))
+        child.on('exit', (code) => resolve(code ?? 1))
+        if (background) child.unref()
+      }),
     ...overrides,
   }
   const [command, ...rest] = argv
