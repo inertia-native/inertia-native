@@ -224,14 +224,18 @@ async function runAndroid(root, flags, url, prompter, io, out, warn) {
   let serial
   /** @type {Promise<string> | undefined} */
   let booting
+  const stopBooting = new AbortController()
   if ('serial' in target) serial = target.serial
-  else booting = startEmulator(emulator, adb, target.avd, io, out)
+  else booting = startEmulator(emulator, adb, target.avd, io, out, stopBooting.signal)
 
   if (booting) {
     booting.catch(() => {}) // awaited below; don't crash if the build fails first
     // Build while the emulator boots.
     out(`› ${gradlew} assembleDebug (the first build downloads Gradle and dependencies)`)
-    if ((await io.spawn(gradlew, ['assembleDebug'], { cwd: android, env: gradleEnv })) !== 0) fail('Gradle build failed; see the errors above.')
+    if ((await io.spawn(gradlew, ['assembleDebug'], { cwd: android, env: gradleEnv })) !== 0) {
+      stopBooting.abort() // the emulator keeps booting, but the CLI exits
+      fail('Gradle build failed; see the errors above.')
+    }
     serial = await booting
   }
   out(`› ${gradlew} installDebug (${serial})`)
@@ -323,9 +327,10 @@ function parseUrl(value) {
  * @param {string} avd
  * @param {RunIO} io
  * @param {(line: string) => void} out
+ * @param {AbortSignal} signal stops waiting
  * @returns {Promise<string>}
  */
-function startEmulator(emulator, adb, avd, io, out) {
+function startEmulator(emulator, adb, avd, io, out, signal) {
   out(`› Starting emulator ${avd}`)
   /** @type {string | undefined} */
   let exited
@@ -337,7 +342,7 @@ function startEmulator(emulator, adb, avd, io, out) {
     let serial
     // The first check waits only for the caller to start the build.
     for (let wait = 0; Date.now() < deadline; wait = 2000) {
-      await sleep(wait)
+      await sleep(wait, undefined, { signal })
       if (exited) fail(`Couldn't start ${avd}: ${exited}. Try starting it from Android Studio's Device Manager.`)
       serial ??= adbDevices(adb, io, true).find((s) => s.startsWith('emulator-') && avdName(adb, s, io) === avd)
       if (serial && io.capture(adb, ['-s', serial, 'shell', 'getprop', 'sys.boot_completed']).stdout.trim() === '1') {

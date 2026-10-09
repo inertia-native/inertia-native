@@ -609,7 +609,9 @@ describe('run', () => {
       })
       expect(code).toBe(1)
       expect(stderr).toBe('✗ Gradle build failed; see the errors above.\n')
-      expect(calls).not.toContain('$ ./gradlew installDebug')
+      // Stops waiting for the emulator, which would keep the CLI running.
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(calls).toEqual(['adb devices -l', 'emulator -list-avds', '$ emulator -avd pixel', '$ ./gradlew assembleDebug'])
     })
 
     it('fails when the emulator exits', async () => {
