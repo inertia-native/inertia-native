@@ -23,6 +23,20 @@ Docs: [inertia-native.dev](https://inertia-native.dev). Formerly published as
 `inertia-hotwire-native`. A community project, not affiliated with the
 Inertia.js team.
 
+## Quick start
+
+To set up an existing Inertia app and run it in a simulator:
+
+```bash
+npx inertia-native init
+npm run ios      # or: npm run android
+```
+
+`init` installs the package, patches your entrypoint and creates the `ios/`
+and `android/` apps; start your dev server before `npm run ios`. The
+[quick start](https://inertia-native.dev/guide/quick-start) walks through it.
+To set things up by hand, see [Install](#install) and [Usage](#usage).
+
 ## Install
 
 ```bash

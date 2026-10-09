@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `npx inertia-native init` sets up an existing Inertia app: installs the
+  package, adds `initInertiaNative()` to the entrypoint and creates `ios/` and
+  `android/` Hotwire Native apps from templates shipped in the package.
+- `inertia-native run ios|android` builds the app and launches it in a
+  simulator, emulator or on a device. `inertia-native open ios|android` opens
+  it in Xcode or Android Studio.
+
 ## [1.0.0] — 2026-10-07
 
 First stable release. Upgrading from `0.1.0-beta.2`: rename
