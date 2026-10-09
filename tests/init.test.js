@@ -127,14 +127,15 @@ describe('init on a Laravel-like app', () => {
 ✓ Dev server URL: http://localhost:8000 (found artisan; --url to change)
 › npm install ${SPEC}
 ✓ Added inertia-native to package.json (npm)
-✓ Patched resources/js/app.tsx
+✓ Created resources/js/inertia-native.ts, imported in resources/js/app.tsx
 ✓ Created ios/ and android/
 ✓ Added "ios" and "android" scripts to package.json
 
 Next: start your dev server (composer run dev), then run: npm run ios (or npm run android)
 `)
     expect(installer.calls.map((c) => [c.cmd, c.args, c.cwd])).toEqual([['npm', ['install', SPEC], dir]])
-    expect(read(dir, 'resources/js/app.tsx')).toContain("import { initInertiaNative } from 'inertia-native';\n")
+    expect(read(dir, 'resources/js/app.tsx')).toContain("import './inertia-native';\n")
+    expect(read(dir, 'resources/js/inertia-native.ts')).toContain("import { initInertiaNative } from 'inertia-native';\n")
     expect(read(dir, 'resources/js/ssr.tsx')).toBe(ENTRY)
     expect(read(dir, 'ios/App/AppConfig.swift')).toContain('"http://localhost:8000"')
     expect(pkgJson(dir).scripts).toEqual({ ios: 'inertia-native run ios', android: 'inertia-native run android' })
@@ -150,7 +151,7 @@ Next: start your dev server (composer run dev), then run: npm run ios (or npm ru
     expect(snapshot(dir)).toEqual(before)
     expect(installer.calls).toEqual([])
     expect(stdout).toContain('✓ inertia-native is already in package.json')
-    expect(stdout).toContain('✓ resources/js/app.tsx already calls initInertiaNative()')
+    expect(stdout).toContain('✓ resources/js/app.tsx already sets up inertia-native')
     expect(stdout).toContain('✓ package.json already has the scripts')
     expect(stdout).not.toContain('App name')
     expect(stderr).toContain('! Skipped ios/: it already exists (--force replaces it)')
@@ -358,7 +359,7 @@ describe('package', () => {
     const { code, stdout, stderr } = await cli(['init', 'ios'], dir, { exec: fakeInstaller(1).exec })
     expect(code).toBe(1)
     expect(stderr).toContain(`✗ Couldn't add inertia-native. Run this yourself: npm install ${SPEC}`)
-    expect(stdout).toContain('✓ Patched resources/js/app.tsx')
+    expect(stdout).toContain('✓ Created resources/js/inertia-native.ts, imported in resources/js/app.tsx')
     expect(existsSync(join(dir, 'ios'))).toBe(true)
   })
 
@@ -397,11 +398,11 @@ describe('entrypoint', () => {
   })
 
   it('prints the two lines and leaves the file alone when it cannot patch it', async () => {
-    const source = "import { createInertiaApp } from '@inertiajs/react'\n\nboot(createInertiaApp({}))\n"
+    const source = "const { createInertiaApp } = require('@inertiajs/react')\n\ncreateInertiaApp({})\n"
     const dir = project('acme-shop', { 'src/main.ts': source })
     const { code, stderr } = await cli(['init', 'ios'], dir)
     expect(code).toBe(0)
-    expect(stderr).toContain("! Couldn't patch src/main.ts: createInertiaApp( does not start its own statement.")
+    expect(stderr).toContain("! Couldn't patch src/main.ts: no import statements were found.")
     expect(stderr).toContain("import { initInertiaNative } from 'inertia-native'")
     expect(read(dir, 'src/main.ts')).toBe(source)
   })
@@ -410,7 +411,7 @@ describe('entrypoint', () => {
     const dir = project('acme-shop', { 'resources/js/app.tsx': ENTRY, 'resources/js/admin/app.tsx': ENTRY })
     const { stdout } = await cli(['init', 'ios'], dir)
     expect(stdout).toContain('✓ Found entrypoint resources/js/app.tsx (also: resources/js/admin/app.tsx; pick one with --entrypoint)')
-    expect(read(dir, 'resources/js/app.tsx')).toContain('initInertiaNative')
+    expect(read(dir, 'resources/js/app.tsx')).toContain("import './inertia-native'")
     expect(read(dir, 'resources/js/admin/app.tsx')).toBe(ENTRY)
   })
 
@@ -423,7 +424,7 @@ describe('entrypoint', () => {
       choices: ['resources/js/app.tsx', 'resources/js/admin/app.tsx'],
       fallback: 'resources/js/app.tsx',
     })
-    expect(read(dir, 'resources/js/admin/app.tsx')).toContain('initInertiaNative')
+    expect(read(dir, 'resources/js/admin/app.tsx')).toContain("import './inertia-native'")
     expect(read(dir, 'resources/js/app.tsx')).toBe(ENTRY)
   })
 
@@ -431,7 +432,7 @@ describe('entrypoint', () => {
     const dir = project('acme-shop', { 'resources/js/app.tsx': ENTRY, 'client/boot.js': ENTRY })
     const { stdout } = await cli(['init', 'ios', '--entrypoint', 'client/boot.js'], dir)
     expect(stdout).not.toContain('Found entrypoint')
-    expect(stdout).toContain('✓ Patched client/boot.js')
+    expect(stdout).toContain('✓ Created client/inertia-native.js, imported in client/boot.js')
     expect(read(dir, 'resources/js/app.tsx')).toBe(ENTRY)
   })
 })
@@ -544,7 +545,7 @@ describe('Vite HMR host for Android', () => {
     const { code, stdout, stderr } = await cli(['init', '--yes'], dir)
     expect(code).toBe(0)
     expect(stderr).toBe('')
-    expect(stdout).toContain('✓ Patched resources/js/app.tsx\n✓ Set server.hmr.host to localhost in vite.config.ts\n✓ Created ios/ and android/')
+    expect(stdout).toContain('✓ Created resources/js/inertia-native.ts, imported in resources/js/app.tsx\n✓ Set server.hmr.host to localhost in vite.config.ts\n✓ Created ios/ and android/')
     expect(read(dir, 'vite.config.ts')).toBe(PATCHED)
   })
 

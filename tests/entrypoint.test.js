@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { findEntrypoints, patchEntrypoint } from '../bin/entrypoint.mjs'
+import { findEntrypoints, initializer, patchEntrypoint } from '../bin/entrypoint.mjs'
 
 describe('patchEntrypoint', () => {
   it('patches the Laravel React starter kit entrypoint', () => {
@@ -20,12 +20,10 @@ void createInertiaApp({
 initializeTheme();
 `
     const expected = `import { createInertiaApp } from '@inertiajs/react';
-import { initInertiaNative } from 'inertia-native';
+import './inertia-native';
 import { Toaster } from '@/components/ui/sonner';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
-
-initInertiaNative();
 
 void createInertiaApp({
     title: (title) => (title ? \`\${title} - \${appName}\` : appName),
@@ -49,11 +47,9 @@ void createInertiaApp({
 })
 `
     const expected = `import { createInertiaApp } from "@inertiajs/react"
-import { initInertiaNative } from "inertia-native"
+import "./inertia-native"
 
 import { initializeTheme } from "@/hooks/use-appearance"
-
-initInertiaNative()
 
 void createInertiaApp({
   strictMode: true,
@@ -64,82 +60,53 @@ void createInertiaApp({
     expect(patchEntrypoint(source)).toEqual({ status: 'patched', contents: expected })
   })
 
-  it('follows a no-semicolon style', () => {
-    const source = `import './bootstrap'
-import { createApp, h } from 'vue'
-import { createInertiaApp } from '@inertiajs/vue3'
-import '../css/app.css'
-
-createInertiaApp({
-  resolve: (name) => name,
-})
-`
-    const expected = `import './bootstrap'
-import { createApp, h } from 'vue'
-import { createInertiaApp } from '@inertiajs/vue3'
-import { initInertiaNative } from 'inertia-native'
-import '../css/app.css'
-
-initInertiaNative()
-
-createInertiaApp({
-  resolve: (name) => name,
-})
-`
+  it('adds the import after the createInertiaApp import', () => {
+    const source = "import './bootstrap'\nimport { createInertiaApp } from '@inertiajs/vue3'\nimport '../css/app.css'\n\ncreateInertiaApp({})\n"
+    const expected =
+      "import './bootstrap'\nimport { createInertiaApp } from '@inertiajs/vue3'\nimport './inertia-native'\nimport '../css/app.css'\n\ncreateInertiaApp({})\n"
     expect(patchEntrypoint(source)).toEqual({ status: 'patched', contents: expected })
   })
 
-  it('handles multi-line imports and export default', () => {
-    const source = `import {
-  createInertiaApp,
-  router,
-} from '@inertiajs/react'
-import './app.css'
+  it('handles multi-line imports', () => {
+    const source = "import {\n  createInertiaApp,\n  router,\n} from '@inertiajs/react'\nimport './app.css'\n\nexport default createInertiaApp({})\n"
+    const expected =
+      "import {\n  createInertiaApp,\n  router,\n} from '@inertiajs/react'\nimport './inertia-native'\nimport './app.css'\n\nexport default createInertiaApp({})\n"
+    expect(patchEntrypoint(source)).toEqual({ status: 'patched', contents: expected })
+  })
 
-export default createInertiaApp({})
-`
-    const expected = `import {
-  createInertiaApp,
-  router,
-} from '@inertiajs/react'
-import { initInertiaNative } from 'inertia-native'
-import './app.css'
-
-initInertiaNative()
-
-export default createInertiaApp({})
-`
+  it('falls back to after the last import', () => {
+    const source = "import * as Inertia from '@inertiajs/react'\nimport './app.css'\n\nInertia.createInertiaApp({})\n"
+    const expected = "import * as Inertia from '@inertiajs/react'\nimport './app.css'\nimport './inertia-native'\n\nInertia.createInertiaApp({})\n"
     expect(patchEntrypoint(source)).toEqual({ status: 'patched', contents: expected })
   })
 
   it('inserts the import after a trailing comment, not further down', () => {
     const source = "import { createInertiaApp } from '@inertiajs/react' // the app\nconst meta = {\n  title: 'Shop'\n}\n\ncreateInertiaApp({ meta })\n"
     const expected =
-      "import { createInertiaApp } from '@inertiajs/react' // the app\nimport { initInertiaNative } from 'inertia-native'\nconst meta = {\n  title: 'Shop'\n}\n\ninitInertiaNative()\n\ncreateInertiaApp({ meta })\n"
+      "import { createInertiaApp } from '@inertiajs/react' // the app\nimport './inertia-native'\nconst meta = {\n  title: 'Shop'\n}\n\ncreateInertiaApp({ meta })\n"
     expect(patchEntrypoint(source)).toEqual({ status: 'patched', contents: expected })
-  })
-
-  it('keeps indentation inside a function', () => {
-    const source = "import { createInertiaApp } from '@inertiajs/react'\n\nexport function boot() {\n  return createInertiaApp({})\n}\n"
-    const expected =
-      "import { createInertiaApp } from '@inertiajs/react'\nimport { initInertiaNative } from 'inertia-native'\n\nexport function boot() {\n  initInertiaNative()\n\n  return createInertiaApp({})\n}\n"
-    expect(patchEntrypoint(source)).toEqual({ status: 'patched', contents: expected })
-  })
-
-  it('handles const app = await createInertiaApp(', () => {
-    const source = "import { createInertiaApp } from '@inertiajs/svelte'\n\nconst app = await createInertiaApp({})\n"
-    expect(patchEntrypoint(source)).toEqual({
-      status: 'patched',
-      contents:
-        "import { createInertiaApp } from '@inertiajs/svelte'\nimport { initInertiaNative } from 'inertia-native'\n\ninitInertiaNative()\n\nconst app = await createInertiaApp({})\n",
-    })
   })
 
   it('keeps CRLF line endings', () => {
     const source = "import { createInertiaApp } from '@inertiajs/react';\r\n\r\ncreateInertiaApp({});\r\n"
-    const expected =
-      "import { createInertiaApp } from '@inertiajs/react';\r\nimport { initInertiaNative } from 'inertia-native';\r\n\r\ninitInertiaNative();\r\n\r\ncreateInertiaApp({});\r\n"
+    const expected = "import { createInertiaApp } from '@inertiajs/react';\r\nimport './inertia-native';\r\n\r\ncreateInertiaApp({});\r\n"
     expect(patchEntrypoint(source)).toEqual({ status: 'patched', contents: expected })
+  })
+
+  const head = "import { createInertiaApp } from '@inertiajs/react'\n"
+
+  it.each([
+    ['inside a function', 'export function boot() {\n  return createInertiaApp({})\n}\n'],
+    ['in an arrow body', 'const boot = () =>\n  createInertiaApp({})\nboot()\n'],
+    ['in an arrow body in a callback', "document.addEventListener('DOMContentLoaded', () =>\n  createInertiaApp({}))\n"],
+    ['in an if without braces', "if (document.getElementById('app'))\n  createInertiaApp({})\n"],
+    ['in an else without braces', 'if (window.x) foo()\nelse\n  createInertiaApp({})\n'],
+    ['in a loop without braces', 'for (const el of roots)\n  createInertiaApp({})\n'],
+    ['on a continued line', 'const app =\n  createInertiaApp({})\n'],
+    ['nested in an expression', 'boot(createInertiaApp({}))\n'],
+    ['twice', 'createInertiaApp({})\ncreateInertiaApp({})\n'],
+  ])('patches wherever createInertiaApp( is called: %s', (_, body) => {
+    expect(patchEntrypoint(`${head}\n${body}`)).toEqual({ status: 'patched', contents: `${head}import './inertia-native'\n\n${body}` })
   })
 
   it('is idempotent', () => {
@@ -156,10 +123,7 @@ export default createInertiaApp({})
 
   it.each([
     ['no createInertiaApp call', "import { createApp } from 'vue'\n\ncreateApp({}).mount('#app')\n"],
-    ['two createInertiaApp calls', "import { createInertiaApp } from '@inertiajs/react'\n\ncreateInertiaApp({})\ncreateInertiaApp({})\n"],
-    ['call continues the previous line', "import { createInertiaApp } from '@inertiajs/react'\n\nconst app =\n  createInertiaApp({})\n"],
-    ['call nested in an expression', "import { createInertiaApp } from '@inertiajs/react'\n\nboot(createInertiaApp({}))\n"],
-    ['no imports', 'createInertiaApp({})\n'],
+    ['no imports', "const { createInertiaApp } = require('@inertiajs/react')\n\ncreateInertiaApp({})\n"],
     ['import without call', "import { createInertiaApp } from '@inertiajs/react'\nimport { initInertiaNative } from 'inertia-native'\n\ncreateInertiaApp({})\n"],
     ['call without import', "import { createInertiaApp } from '@inertiajs/react'\n\ninitInertiaNative()\ncreateInertiaApp({})\n"],
   ])('refuses when it cannot patch safely: %s', (_, source) => {
@@ -167,6 +131,26 @@ export default createInertiaApp({})
     expect(result.status).toBe('unpatchable')
     expect(/** @type {any} */ (result).reason).toBeTruthy()
     expect(result).not.toHaveProperty('contents')
+  })
+})
+
+describe('initializer', () => {
+  it('writes a TypeScript file next to a TypeScript entrypoint, in its style', () => {
+    expect(initializer('/app/resources/js/app.tsx', "import { createInertiaApp } from '@inertiajs/react';\n")).toEqual({
+      path: '/app/resources/js/inertia-native.ts',
+      contents:
+        "import { initInertiaNative } from 'inertia-native';\n\n" +
+        "// Lets the iOS and Android apps drive Inertia's navigation; does nothing in\n" +
+        '// a regular browser. Options: https://inertia-native.dev\n' +
+        'initInertiaNative();\n',
+    })
+  })
+
+  it('writes a JavaScript file next to a JavaScript entrypoint, with CRLF', () => {
+    const { path, contents } = initializer('/app/app/frontend/entrypoints/inertia.js', 'import { createInertiaApp } from "@inertiajs/vue3"\r\n')
+    expect(path).toBe('/app/app/frontend/entrypoints/inertia-native.js')
+    expect(contents).toMatch(/^import \{ initInertiaNative \} from "inertia-native"\r\n/)
+    expect(contents).toMatch(/\r\ninitInertiaNative\(\)\r\n$/)
   })
 })
 

@@ -5,7 +5,7 @@ import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:
 import { basename, join, relative, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 
-import { findEntrypoints, MANUAL_LINES, patchEntrypoint, SEARCH_DIRS } from './entrypoint.mjs'
+import { findEntrypoints, initializer, MANUAL_LINES, patchEntrypoint, SEARCH_DIRS } from './entrypoint.mjs'
 import { addCommand, defaultUrl, devCommand, findProjectRoot, packageManager, readPackageJson, writePackageJson } from './project.mjs'
 import { createPrompter } from './prompt.mjs'
 import { bundleIdFromName, invalid, nameFromDirectory, PLATFORMS, RULES, TEMPLATES, writeShell } from './shell.mjs'
@@ -17,12 +17,12 @@ const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.u
 export const INIT_USAGE = `Usage: npx inertia-native init [ios|android|both] [options]
 
 Sets up inertia-native in your Inertia app (the directory with package.json):
-adds the npm package, patches the file that calls createInertiaApp(),
-creates the native shells ios/ and android/, and adds "ios" and "android"
-scripts to package.json. For Android it also offers to set server.hmr.host
-to localhost in your Vite config: Android can't load scripts from Vite at
-[::1], its default address on macOS. In a terminal it asks for anything not
-given as a flag. Safe to re-run.
+adds the npm package, creates an inertia-native setup file imported by the
+file that calls createInertiaApp(), creates the native shells ios/ and
+android/, and adds "ios" and "android" scripts to package.json. For Android
+it also offers to set server.hmr.host to localhost in your Vite config:
+Android can't load scripts from Vite at [::1], its default address on macOS.
+In a terminal it asks for anything not given as a flag. Safe to re-run.
 
 Options:
   --name <name>        Name under the app icon.
@@ -229,14 +229,17 @@ export async function init(argv, io) {
     }
   }
 
-  // 4. Patch
+  // 4. Setup file, imported by the entrypoint
   if (entrypoint) {
-    const result = patchEntrypoint(readFileSync(entrypoint, 'utf8'))
+    const source = readFileSync(entrypoint, 'utf8')
+    const result = patchEntrypoint(source)
     if (result.status === 'patched') {
+      const setup = initializer(entrypoint, source)
+      if (!existsSync(setup.path)) writeFileSync(setup.path, setup.contents)
       writeFileSync(entrypoint, result.contents)
-      out(`✓ Patched ${show(entrypoint)}`)
+      out(`✓ Created ${show(setup.path)}, imported in ${show(entrypoint)}`)
     } else if (result.status === 'already_patched') {
-      out(`✓ ${show(entrypoint)} already calls initInertiaNative()`)
+      out(`✓ ${show(entrypoint)} already sets up inertia-native`)
     } else {
       manual(`! Couldn't patch ${show(entrypoint)}: ${result.reason}. Add these two lines to it by hand:`)
     }

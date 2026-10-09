@@ -32,8 +32,9 @@ npx inertia-native init
 npm run ios      # or: npm run android
 ```
 
-`init` installs the package, patches your entrypoint and creates the `ios/`
-and `android/` apps; start your dev server before `npm run ios`. The
+`init` installs the package, adds an `inertia-native.ts` setup file imported
+by your entrypoint and creates the `ios/` and `android/` apps; start your dev
+server before `npm run ios`. The
 [quick start](https://inertia-native.dev/guide/quick-start) walks through it.
 To set things up by hand, see [Install](#install) and [Usage](#usage).
 

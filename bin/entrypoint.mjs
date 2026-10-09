@@ -1,6 +1,6 @@
 // Finds the Inertia entrypoint and adds the inertia-native setup to it.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { basename, join, relative } from 'node:path'
+import { basename, dirname, extname, join, relative } from 'node:path'
 
 export const SEARCH_DIRS = ['resources/js', 'app/frontend', 'app/javascript', 'src']
 export const MANUAL_LINES = ["import { initInertiaNative } from 'inertia-native'", 'initInertiaNative() // before createInertiaApp(...)']
@@ -58,26 +58,20 @@ const depth = (path) => path.split(/[\\/]/).length
  */
 
 /**
- * Adds `import { initInertiaNative } from 'inertia-native'` right after the
- * createInertiaApp import and `initInertiaNative()` on its own line before
- * the statement that calls createInertiaApp(. Refuses whenever the result
- * could be wrong, so it never breaks the file.
+ * Adds `import './inertia-native'` right after the createInertiaApp import;
+ * `initializer` writes that file. A file's imports run before its own code,
+ * so where createInertiaApp( is called doesn't matter.
  * @param {string} source
  * @returns {PatchResult}
  */
 export function patchEntrypoint(source) {
+  const hasSetup = /^[ \t]*import\s*['"]\.\/inertia-native['"]/m.test(source)
   const hasImport = /^[ \t]*import\s*\{[^}]*\binitInertiaNative\b[^}]*\}\s*from\s*['"]inertia-native['"]/m.test(source)
   const hasCall = /^[ \t]*initInertiaNative\s*\(/m.test(source)
 
-  if (hasImport && hasCall) return { status: 'already_patched' }
+  if (hasSetup || (hasImport && hasCall)) return { status: 'already_patched' }
   if (hasImport || hasCall) return unpatchable('it is partially set up for inertia-native')
-
-  const calls = [...source.matchAll(/\bcreateInertiaApp\s*\(/g)]
-  if (calls.length !== 1) {
-    return unpatchable(calls.length === 0 ? 'no createInertiaApp( call was found' : 'more than one createInertiaApp( call was found')
-  }
-
-  const eol = source.includes('\r\n') ? '\r\n' : '\n'
+  if (!CALL.test(source)) return unpatchable('no createInertiaApp( call was found')
 
   // Static import statements at the start of a line, single- or multi-line,
   // with any comment after them on the line.
@@ -87,45 +81,32 @@ export function patchEntrypoint(source) {
   // Prefer the line right after the import of createInertiaApp; fall back to the last import.
   const anchor = imports.find((match) => /\bcreateInertiaApp\b/.test(match[1])) ?? imports[imports.length - 1]
   const [, , quote, semicolon] = anchor
-  const importOffset = /** @type {number} */ (anchor.index) + anchor[0].length
+  const offset = /** @type {number} */ (anchor.index) + anchor[0].length
+  const eol = source.includes('\r\n') ? '\r\n' : '\n'
 
-  // The call goes on its own line before the statement holding createInertiaApp(.
-  const callOffset = /** @type {number} */ (calls[0].index)
-  const lineStart = source.lastIndexOf('\n', callOffset - 1) + 1
-  const indent = source
-    .slice(lineStart, callOffset)
-    .match(/^([ \t]*)(?:(?:export\s+default|void|await|return)\s+|(?:const|let|var)\s+[\w$]+\s*=\s*(?:await\s+)?)?$/)
-
-  if (!indent) return unpatchable('createInertiaApp( does not start its own statement')
-  if (continuesPreviousLine(source, lineStart)) return unpatchable('the createInertiaApp( line continues the previous line')
-  if (callOffset < importOffset) return unpatchable('createInertiaApp( is called before the imports end')
-
-  const line = `import { initInertiaNative } from ${quote}inertia-native${quote}${semicolon}`
-  const contents =
-    source.slice(0, importOffset) +
-    eol +
-    line +
-    source.slice(importOffset, lineStart) +
-    `${indent[1]}initInertiaNative()${semicolon}${eol}${eol}` +
-    source.slice(lineStart)
-
-  return { status: 'patched', contents }
+  const line = `import ${quote}./inertia-native${quote}${semicolon}`
+  return { status: 'patched', contents: source.slice(0, offset) + eol + line + source.slice(offset) }
 }
 
 /**
- * Whether the previous code line (skipping blank and comment lines) ends in
- * an operator, i.e. the statement carries on into the next line.
- * @param {string} source
- * @param {number} lineStart
+ * The setup file the patched entrypoint imports: next to it, in its language
+ * and with its quotes and semicolons.
+ * @param {string} entrypoint path
+ * @param {string} source the entrypoint's contents
+ * @returns {{ path: string, contents: string }}
  */
-function continuesPreviousLine(source, lineStart) {
-  const lines = source.slice(0, lineStart).split(/\r?\n/)
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i].trim()
-    if (line === '' || /^(\/\/|\/\*|\*)/.test(line)) continue
-    return /(?:[=(,[?:&|+-]|[^*/]\*)$/.test(line)
-  }
-  return false
+export function initializer(entrypoint, source) {
+  const [, , quote = "'", semicolon = ''] = [...source.matchAll(IMPORT)][0] ?? []
+  const eol = source.includes('\r\n') ? '\r\n' : '\n'
+  const ts = /^\.[cm]?tsx?$/.test(extname(entrypoint))
+  const lines = [
+    `import { initInertiaNative } from ${quote}inertia-native${quote}${semicolon}`,
+    '',
+    "// Lets the iOS and Android apps drive Inertia's navigation; does nothing in",
+    '// a regular browser. Options: https://inertia-native.dev',
+    `initInertiaNative()${semicolon}`,
+  ]
+  return { path: join(dirname(entrypoint), `inertia-native.${ts ? 'ts' : 'js'}`), contents: lines.join(eol) + eol }
 }
 
 /**

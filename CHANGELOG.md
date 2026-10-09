@@ -9,8 +9,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - `npx inertia-native init` sets up an existing Inertia app: installs the
-  package, adds `initInertiaNative()` to the entrypoint and creates `ios/` and
-  `android/` Hotwire Native apps from templates shipped in the package.
+  package, adds an `inertia-native.ts` setup file imported by the entrypoint
+  and creates `ios/` and `android/` Hotwire Native apps from templates
+  shipped in the package.
 - `inertia-native run ios|android` builds the app and launches it in a
   simulator, emulator or on a device. `inertia-native open ios|android` opens
   it in Xcode or Android Studio.
