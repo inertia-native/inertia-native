@@ -112,6 +112,13 @@ export default createInertiaApp({})
     expect(patchEntrypoint(source)).toEqual({ status: 'patched', contents: expected })
   })
 
+  it('inserts the import after a trailing comment, not further down', () => {
+    const source = "import { createInertiaApp } from '@inertiajs/react' // the app\nconst meta = {\n  title: 'Shop'\n}\n\ncreateInertiaApp({ meta })\n"
+    const expected =
+      "import { createInertiaApp } from '@inertiajs/react' // the app\nimport { initInertiaNative } from 'inertia-native'\nconst meta = {\n  title: 'Shop'\n}\n\ninitInertiaNative()\n\ncreateInertiaApp({ meta })\n"
+    expect(patchEntrypoint(source)).toEqual({ status: 'patched', contents: expected })
+  })
+
   it('keeps indentation inside a function', () => {
     const source = "import { createInertiaApp } from '@inertiajs/react'\n\nexport function boot() {\n  return createInertiaApp({})\n}\n"
     const expected =

@@ -9,6 +9,7 @@ const SOURCE = /\.(?:[cm]?[jt]sx?)$/
 const SKIP_FILE = /\.d\.[cm]?ts$|\.(?:test|spec)\.[cm]?[jt]sx?$/
 const SKIP_DIR = new Set(['node_modules', '__tests__', 'dist', 'build', 'public'])
 const CALL = /\bcreateInertiaApp\s*\(/
+const IMPORT = /^(import\s+(?:[\w$*,\s]*\{[^}]*\}[\w$,\s]*from\s*|[\w$*,\s]*?from\s*)?(['"])[^'"\r\n]+\2[ \t]*(;?))[ \t]*(?:\/\/.*?)?(?=\r?$)/gm
 const SSR_IMPORT = /from\s*['"](?:@inertiajs\/[\w-]+\/server|react-dom\/server|vue\/server-renderer|svelte\/server)['"]/
 
 /**
@@ -78,14 +79,14 @@ export function patchEntrypoint(source) {
 
   const eol = source.includes('\r\n') ? '\r\n' : '\n'
 
-  // Static import statements at the start of a line, single- or multi-line.
-  const imports = [...source.matchAll(/^import\s[\s\S]*?['"][^'"\r\n]+['"][ \t]*;?(?=[ \t]*\r?$)/gm)]
+  // Static import statements at the start of a line, single- or multi-line,
+  // with any comment after them on the line.
+  const imports = [...source.matchAll(IMPORT)]
   if (imports.length === 0) return unpatchable('no import statements were found')
 
   // Prefer the line right after the import of createInertiaApp; fall back to the last import.
-  const anchor = imports.find((match) => /\bcreateInertiaApp\b/.test(match[0])) ?? imports[imports.length - 1]
-  const semicolon = anchor[0].endsWith(';') ? ';' : ''
-  const quote = /** @type {RegExpMatchArray} */ (anchor[0].match(/(['"])[^'"\r\n]+\1[ \t]*;?$/))[1]
+  const anchor = imports.find((match) => /\bcreateInertiaApp\b/.test(match[1])) ?? imports[imports.length - 1]
+  const [, , quote, semicolon] = anchor
   const importOffset = /** @type {number} */ (anchor.index) + anchor[0].length
 
   // The call goes on its own line before the statement holding createInertiaApp(.
