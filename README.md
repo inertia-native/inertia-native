@@ -80,22 +80,33 @@ connected native app supports the component and a stable `send(event, data?,
 callback?)`. Build specific components (`form`, `menu`, `overflow-menu`, …) in
 your app on top of it.
 
+The shells that `npx inertia-native init` creates ship these native
+components. Native replies to the message you sent, which calls its `callback`:
+
+| Component       | Send                                                               | Native replies                         |
+| --------------- | ------------------------------------------------------------------ | -------------------------------------- |
+| `button`        | `connect` `{ title, side? }` (`side: 'left'` is iOS only)          | on each tap                            |
+| `form`          | `connect` `{ submitTitle }`; `submitEnabled`, `submitDisabled`     | on each tap of the submit button       |
+| `menu`          | `display` `{ title, items: [{ title, index }] }`                   | `{ selectedIndex }`; nothing on cancel |
+| `overflow-menu` | `connect` `{ label }`                                              | on each tap                            |
+| `alert`         | `show` `{ title, description?, destructive?, confirm?, dismiss? }` | on confirm; nothing on dismiss         |
+
 ```jsx
 import { useBridgeComponent } from 'inertia-native/react'
 
-function NativeMenu({ items }) {
+// items: ['Edit', 'Delete']; onSelect gets the picked index.
+function NativeMenu({ title, items, onSelect }) {
   const { supported, send } = useBridgeComponent('menu')
   if (!supported) return null
 
-  return (
-    <button
-      onClick={() =>
-        send('connect', { items }, (message) => onSelect(message.data.index))
-      }
-    >
-      Open menu
-    </button>
-  )
+  const open = () =>
+    send(
+      'display',
+      { title, items: items.map((item, index) => ({ title: item, index })) },
+      (message) => onSelect(message.data.selectedIndex)
+    )
+
+  return <button onClick={open}>Open menu</button>
 }
 ```
 
@@ -126,11 +137,15 @@ them in a template); `send` has the same signature.
 <script setup>
 import { useBridgeComponent } from 'inertia-native/vue'
 
-const props = defineProps(['items'])
+const props = defineProps(['title', 'items'])
+const emit = defineEmits(['select'])
 const { supported, send } = useBridgeComponent('menu')
 
 function open() {
-  send('connect', { items: props.items }, (message) => onSelect(message.data.index))
+  const items = props.items.map((item, index) => ({ title: item, index }))
+  send('display', { title: props.title, items }, (message) =>
+    emit('select', message.data.selectedIndex)
+  )
 }
 </script>
 
@@ -153,11 +168,17 @@ registers an `onDestroy` cleanup.
 <script>
   import { useBridgeComponent } from 'inertia-native/svelte'
 
+  export let title
   export let items
+  export let onSelect
   const { supported, send } = useBridgeComponent('menu')
 
   const open = () =>
-    send('connect', { items }, (message) => onSelect(message.data.index))
+    send(
+      'display',
+      { title, items: items.map((item, index) => ({ title: item, index })) },
+      (message) => onSelect(message.data.selectedIndex)
+    )
 </script>
 
 {#if $supported}
