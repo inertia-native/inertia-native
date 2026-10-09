@@ -16,11 +16,15 @@ Run \`npx inertia-native <command> --help\` for options.`
 
 /**
  * @param {string[]} argv
- * @param {import('./init.mjs').IO} [io]
+ * @param {Partial<import('./init.mjs').IO>} [overrides]
  * @returns {Promise<number>}
  */
-export async function main(argv, io = {}) {
-  io = {
+export async function main(argv, overrides = {}) {
+  /** @type {import('./init.mjs').IO} */
+  const io = {
+    cwd: process.cwd(),
+    env: process.env,
+    os: process.platform,
     stdin: process.stdin,
     stdout: process.stdout,
     stderr: process.stderr,
@@ -29,7 +33,7 @@ export async function main(argv, io = {}) {
       spawn(cmd, args, { cwd, env, detached: true, stdio: 'ignore' }).on('error', () => {}).unref()
       return 0
     },
-    ...io,
+    ...overrides,
   }
   const [command, ...rest] = argv
   if (command === 'init') return init(rest, io)
@@ -37,9 +41,9 @@ export async function main(argv, io = {}) {
   if (command === 'open') return open(rest, io)
   if (command === undefined || command === 'help' || command === '--help' || command === '-h') {
     const out = command === undefined ? io.stderr : io.stdout
-    out?.write(`${USAGE}\n\n${INIT_USAGE}\n\n${RUN_USAGE}\n\n${OPEN_USAGE}\n`)
+    out.write(`${USAGE}\n\n${INIT_USAGE}\n\n${RUN_USAGE}\n\n${OPEN_USAGE}\n`)
     return command === undefined ? 1 : 0
   }
-  io.stderr?.write(`Unknown command "${command}".\n\n${USAGE}\n`)
+  io.stderr.write(`Unknown command "${command}".\n\n${USAGE}\n`)
   return 1
 }

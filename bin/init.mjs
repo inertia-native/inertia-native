@@ -39,17 +39,16 @@ Options:
 
 /**
  * @typedef {object} IO
- * @property {string} [cwd]
- * @property {Record<string, string | undefined>} [env]
- * @property {NodeJS.ReadableStream & { isTTY?: boolean }} [stdin]
- * @property {{ write(s: string): unknown }} [stdout]
- * @property {{ write(s: string): unknown }} [stderr]
+ * @property {string} cwd
+ * @property {Record<string, string | undefined>} env
+ * @property {NodeJS.Platform} os
+ * @property {NodeJS.ReadableStream & { isTTY?: boolean }} stdin
+ * @property {{ write(s: string): unknown }} stdout
+ * @property {{ write(s: string): unknown }} stderr
  * @property {import('./prompt.mjs').Prompter} [prompter] Replaces the terminal prompts (tests).
- * @property {(cmd: string, args: string[], options: { cwd: string, env: Record<string, string | undefined>, detached?: boolean }) => number} [exec]
+ * @property {(cmd: string, args: string[], options: { cwd: string, env: Record<string, string | undefined>, detached?: boolean }) => number} exec
  *   Runs a command with inherited stdio and returns its exit code; `detached`
  *   starts it in the background instead (returns 0).
- * @property {string} [templates]
- * @property {NodeJS.Platform} [os] Replaces process.platform (tests).
  */
 
 /**
@@ -58,10 +57,9 @@ Options:
  * @returns {Promise<number>} exit code
  */
 export async function init(argv, io) {
-  const { cwd = process.cwd(), env = process.env, stdin, templates = TEMPLATES } = io
-  const exec = io.exec ?? (() => 1)
-  const out = (/** @type {string} */ line = '') => io.stdout?.write(`${line}\n`)
-  const warn = (/** @type {string} */ line) => io.stderr?.write(`${line}\n`)
+  const { cwd, env, stdin, exec } = io
+  const out = (/** @type {string} */ line = '') => io.stdout.write(`${line}\n`)
+  const warn = (/** @type {string} */ line) => io.stderr.write(`${line}\n`)
 
   /** @param {string[]} messages */
   const abort = (messages) => {
@@ -124,7 +122,7 @@ export async function init(argv, io) {
 
   const prompter = flags.yes
     ? undefined
-    : (io.prompter ?? (stdin?.isTTY ? createPrompter(stdin, /** @type {NodeJS.WritableStream} */ (io.stdout)) : undefined))
+    : (io.prompter ?? (stdin.isTTY ? createPrompter(stdin, /** @type {NodeJS.WritableStream} */ (io.stdout)) : undefined))
 
   /** @param {string} label @param {string} value @param {string} hint */
   const report = (label, value, hint) => {
@@ -264,7 +262,7 @@ export async function init(argv, io) {
     }
     const replaced = existsSync(target)
     if (replaced) rmSync(target, { recursive: true })
-    writeShell(join(templates, platform), target, /** @type {NonNullable<typeof values>} */ (values))
+    writeShell(join(TEMPLATES, platform), target, /** @type {NonNullable<typeof values>} */ (values))
     written.push(`${show(target)}/${replaced ? ' (replaced)' : ''}`)
   }
   if (written.length) out(`✓ Created ${written.join(' and ')}`)

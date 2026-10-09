@@ -31,9 +31,9 @@ Options:
 const ANDROID_ACTIVITY = 'dev.inertianative.app.MainActivity'
 const exe = (/** @type {string} */ name) => (process.platform === 'win32' ? `${name}.exe` : name)
 
-export class Failure extends Error {}
+class Failure extends Error {}
 /** @param {string} message @returns {never} */
-export const fail = (message) => {
+const fail = (message) => {
   throw new Failure(message)
 }
 
@@ -45,9 +45,9 @@ export const fail = (message) => {
  * @returns {Promise<number>}
  */
 export async function run(argv, io) {
-  const { cwd = process.cwd(), env = process.env } = io
-  const out = (/** @type {string} */ line) => io.stdout?.write(`${line}\n`)
-  const warn = (/** @type {string} */ line) => io.stderr?.write(`${line}\n`)
+  const { cwd, env } = io
+  const out = (/** @type {string} */ line) => io.stdout.write(`${line}\n`)
+  const warn = (/** @type {string} */ line) => io.stderr.write(`${line}\n`)
 
   let parsed
   try {
@@ -78,7 +78,7 @@ export async function run(argv, io) {
   }
 
   // Asks only in a terminal, and closes before any build takes the terminal over.
-  const prompter = io.prompter ?? (io.stdin?.isTTY ? createPrompter(io.stdin, /** @type {NodeJS.WritableStream} */ (io.stdout)) : undefined)
+  const prompter = io.prompter ?? (io.stdin.isTTY ? createPrompter(io.stdin, /** @type {NodeJS.WritableStream} */ (io.stdout)) : undefined)
   try {
     if (flags.list) {
       if (platform === 'ios') out(formatSimulators(iosSimulators(listSimulators())))
@@ -210,7 +210,7 @@ async function runAndroid(root, env, flags, url, prompter, out, warn) {
   /** @type {Promise<string> | undefined} */
   let booting
   if ('serial' in target) serial = target.serial
-  else booting = startEmulator(sdk, adb, target.avd, out)
+  else booting = startEmulator(emulator, adb, target.avd, out)
 
   if (booting) {
     booting.catch(() => {}) // awaited below; don't crash if the build fails first
@@ -303,15 +303,15 @@ function parseUrl(value) {
 
 /**
  * Starts an AVD and resolves with its serial once Android has booted.
- * @param {string} sdk
+ * @param {string} emulator
  * @param {string} adb
  * @param {string} avd
  * @param {(line: string) => void} out
  * @returns {Promise<string>}
  */
-function startEmulator(sdk, adb, avd, out) {
+function startEmulator(emulator, adb, avd, out) {
   out(`› Starting emulator ${avd}`)
-  const child = spawn(join(sdk, 'emulator', exe('emulator')), ['-avd', avd], { detached: true, stdio: 'ignore' })
+  const child = spawn(emulator, ['-avd', avd], { detached: true, stdio: 'ignore' })
   /** @type {string | undefined} */
   let exited
   child.on('exit', (code) => (exited = `the emulator exited (code ${code})`))
@@ -615,10 +615,10 @@ export function findAndroidSdk(env, root, home = homedir(), os = process.platfor
  * A JDK for Gradle: JAVA_HOME, macOS's java_home, Android Studio's bundled
  * JDK, Homebrew's openjdk, then `java` on PATH.
  * @param {Record<string, string | undefined>} env
- * @param {NodeJS.Platform} [os]
  * @returns {{ home?: string } | undefined}
  */
-export function findJdk(env, os = process.platform) {
+export function findJdk(env) {
+  const os = process.platform
   const java = (/** @type {string} */ home) => existsSync(join(home, 'bin', exe('java')))
   if (env.JAVA_HOME && java(env.JAVA_HOME)) return { home: env.JAVA_HOME }
   if (os === 'darwin') {
@@ -645,10 +645,9 @@ export function findJdk(env, os = process.platform) {
 /**
  * @param {string} cmd
  * @param {string[]} args
- * @param {import('node:child_process').SpawnSyncOptions} [options]
  */
-function capture(cmd, args, options = {}) {
-  const result = spawnSync(cmd, args, { encoding: 'utf8', ...options })
+function capture(cmd, args) {
+  const result = spawnSync(cmd, args, { encoding: 'utf8' })
   return { ok: result.status === 0, stdout: String(result.stdout ?? ''), stderr: String(result.stderr ?? result.error?.message ?? '') }
 }
 

@@ -23,10 +23,9 @@ Options:
  * @returns {Promise<number>}
  */
 export async function open(argv, io) {
-  const { cwd = process.cwd(), env = process.env, os = process.platform } = io
-  const exec = io.exec ?? (() => 1)
-  const out = (/** @type {string} */ line) => io.stdout?.write(`${line}\n`)
-  const warn = (/** @type {string} */ line) => io.stderr?.write(`${line}\n`)
+  const { cwd, env, os, exec } = io
+  const out = (/** @type {string} */ line) => io.stdout.write(`${line}\n`)
+  const warn = (/** @type {string} */ line) => io.stderr.write(`${line}\n`)
 
   let parsed
   try {
@@ -92,10 +91,10 @@ export async function open(argv, io) {
  * @param {'ios' | 'android'} platform
  * @param {string} target
  * @param {Record<string, string | undefined>} env
- * @param {NodeJS.Platform} [os]
+ * @param {NodeJS.Platform} os
  * @returns {[string, string[]] | undefined}
  */
-export function ideCommand(platform, target, env, os = process.platform) {
+export function ideCommand(platform, target, env, os) {
   if (os === 'darwin') return platform === 'ios' ? ['open', [target]] : ['open', ['-a', 'Android Studio', target]]
   if (os !== 'linux' || platform === 'ios') return undefined
   const studio = findOnPath(['studio', 'studio.sh'], env.PATH)

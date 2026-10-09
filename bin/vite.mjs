@@ -39,7 +39,7 @@ export function patchViteConfig(source) {
   if (typeof open === 'string') return unpatchable(open)
 
   const quote = source.match(/^import\s[^'"]*(['"])/m)?.[1] ?? "'"
-  const result = setNested(source, code, open, ['server', 'host'], `${quote}${VITE_HOST}${quote}`, (key) => key)
+  const result = setNested(source, code, open, ['server', 'host'], `${quote}${VITE_HOST}${quote}`)
   if (result.status === 'patched' && patchViteConfig(result.contents).status !== 'already_patched') {
     return unpatchable("the change couldn't be checked")
   }
@@ -60,17 +60,16 @@ const reachable = (host) => host === VITE_HOST || host === '0.0.0.0' || host ===
  * @param {number} open
  * @param {[string, string]} path
  * @param {string} value literal to insert
- * @param {(key: string) => string} key how the file writes keys
  * @returns {import('./entrypoint.mjs').PatchResult}
  */
-function setNested(source, code, open, [outer, inner], value, key) {
+function setNested(source, code, open, [outer, inner], value) {
   const eol = source.includes('\r\n') ? '\r\n' : '\n'
   const top = readObject(source, code, open)
   if (!top) return unpatchable("its config object couldn't be read")
   if (top.entries.some(unclear)) return unpatchable('its config object spreads in other objects or has computed keys or methods')
   const found = top.entries.filter((e) => e.key === outer)
   if (found.length > 1) return unpatchable(`it sets ${outer} more than once`)
-  if (!found.length) return insertFirst(source, code, top, `${key(outer)}: { ${key(inner)}: ${value} }`, eol)
+  if (!found.length) return insertFirst(source, code, top, `${outer}: { ${inner}: ${value} }`, eol)
 
   const entry = found[0]
   if (entry.kind !== 'property' || code[entry.value] !== '{') return unpatchable(`its ${outer} option isn't written out as an object`)
@@ -84,7 +83,7 @@ function setNested(source, code, open, [outer, inner], value, key) {
     if (hosts.length === 1 && reachable(literal)) return { status: 'already_patched' }
     return unpatchable(`it already sets ${outer}.${inner} to ${current}`)
   }
-  return insertFirst(source, code, nested, `${key(inner)}: ${value}`, eol)
+  return insertFirst(source, code, nested, `${inner}: ${value}`, eol)
 }
 
 /**
