@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Usage: .github/scripts/bump-hotwire-ios.sh [version]
 #
-# Bumps Hotwire Native iOS in templates/ios to <version> (default: the latest
+# Bumps Hotwire Native iOS in packages/cli/templates/ios to <version> (default: the latest
 # release): sets the minimum of the package requirement in project.pbxproj
 # and lets Xcode re-resolve Package.resolved. Renovate bumps minor and patch
 # versions in Package.resolved on its own; use this for a new major or to
@@ -9,7 +9,7 @@
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/../.." && pwd)
-project=$repo/templates/ios/App.xcodeproj
+project=$repo/packages/cli/templates/ios/App.xcodeproj
 pbxproj=$project/project.pbxproj
 resolved=$project/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 url=https://github.com/hotwired/hotwire-native-ios
@@ -35,4 +35,4 @@ if ! grep -q "\"version\" : \"$version\"" "$resolved"; then
   echo "Xcode resolved another version (the newest within the major):" >&2
   grep '"version"' "$resolved" >&2
 fi
-git -C "$repo" diff --stat -- templates/ios
+git -C "$repo" diff --stat -- packages/cli/templates/ios

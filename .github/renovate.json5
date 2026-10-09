@@ -12,7 +12,7 @@
       // already allows minor and patch releases. For a new major, run
       // .github/scripts/bump-hotwire-ios.sh instead.
       customType: 'regex',
-      managerFilePatterns: ['/^templates/ios/App\\.xcodeproj/project\\.xcworkspace/xcshareddata/swiftpm/Package\\.resolved$/'],
+      managerFilePatterns: ['/^packages/cli/templates/ios/App\\.xcodeproj/project\\.xcworkspace/xcshareddata/swiftpm/Package\\.resolved$/'],
       matchStrings: [
         '"location" : "https://github\\.com/(?<depName>hotwired/hotwire-native-ios)",\\s*"state" : \\{\\s*"revision" : "(?<currentDigest>[0-9a-f]{40})",\\s*"version" : "(?<currentValue>[^"]+)"',
       ],
@@ -31,8 +31,8 @@
       enabled: false,
     },
     {
-      // CI's JDK matches toolchainVersion in the template's
-      // gradle/gradle-daemon-jvm.properties; bump both by hand.
+      // CI builds the template with the JDK Android Studio bundles; bump it
+      // by hand when Android Studio does.
       matchDepNames: ['java-jdk'],
       matchUpdateTypes: ['major'],
       enabled: false,

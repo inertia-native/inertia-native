@@ -8,9 +8,9 @@ on:
   push:
     branches: [main]
     paths: &paths
-      - bin/**
-      - templates/**
-      - package.json
+      - packages/cli/bin/**
+      - packages/cli/templates/**
+      - packages/cli/package.json
       - .github/scripts/native-fixture.sh
       - .github/workflows/native.yml
   pull_request:
@@ -46,7 +46,7 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/spm
-          key: spm-${{ hashFiles('templates/ios/**/Package.resolved') }}
+          key: spm-${{ hashFiles('packages/cli/templates/ios/**/Package.resolved') }}
       - run: xcodebuild -version
       # Debug for the simulator is what `inertia-native run ios` builds;
       # Release for a device is what an archive builds (unsigned here).
@@ -76,13 +76,13 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      # gradle-daemon-jvm.properties asks for 21; Gradle would download it otherwise.
+      # The template builds with any JDK 17+; 21 is the LTS Android Studio bundles.
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
       # Also runs wrapper validation on every gradle-wrapper.jar in the
-      # checkout (templates/android): validate-wrappers defaults to true.
+      # checkout (packages/cli/templates/android): validate-wrappers defaults to true.
       - uses: gradle/actions/setup-gradle@v6
       - run: .github/scripts/native-fixture.sh "$RUNNER_TEMP/acme-shop"
       - name: Build and lint
