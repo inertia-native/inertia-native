@@ -138,7 +138,10 @@ async function runIos(root, device, prompter, io, out, warn) {
   const sim = await chooseSimulator(sims, { device, prompter })
   prompter?.close()
   out(`✓ Simulator: ${sim.name} (iOS ${sim.runtime})`)
-  if (sim.state !== 'Booted') capture('xcrun', ['simctl', 'boot', sim.udid])
+  if (sim.state !== 'Booted') {
+    const booted = capture('xcrun', ['simctl', 'boot', sim.udid])
+    if (!booted.ok) fail(`Couldn't boot ${sim.name}: ${booted.stderr.trim()}`)
+  }
   if (!showSimulator(developer, sim.udid, io)) {
     warn(`! Couldn't open Simulator, so ${sim.name} has no window. Open Simulator (Device Hub from Xcode 27) to see the app.`)
   }

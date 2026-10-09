@@ -482,6 +482,12 @@ describe('run', () => {
       expect(calls.slice(1, 4)).toEqual(['xcrun simctl list devices available --json', 'xcrun simctl boot udid-17', openSimulator()])
     })
 
+    it("stops when the simulator doesn't boot", async () => {
+      const { code, stderr } = await runIos('Shutdown', { captures: { 'xcrun simctl boot udid-17': { ok: false, stderr: 'Unable to boot device\n' } } })
+      expect(code).toBe(1)
+      expect(stderr).toBe("✗ Couldn't boot iPhone 17: Unable to boot device\n")
+    })
+
     it("opens the simulator in Xcode 27's Device Hub", async () => {
       rmSync(simulatorApp(), { recursive: true })
       mkdirSync(join(tmp, 'Xcode.app', 'Contents', 'Applications', 'DeviceHub.app'), { recursive: true })
