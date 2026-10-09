@@ -432,6 +432,8 @@ describe('run', () => {
 
   describe('ios', () => {
     const app = () => join(tmp, 'ios', 'build', 'Build', 'Products', 'Debug-iphonesimulator', 'App.app')
+    const simulatorApp = () => join(tmp, 'Xcode.app', 'Contents', 'Developer', 'Applications', 'Simulator.app')
+    const openSimulator = () => `open ${simulatorApp()} --args -CurrentDeviceUDID udid-17`
     const xcodebuild = 'xcodebuild -project ios/App.xcodeproj -scheme App -configuration Debug -destination id=udid-17 -derivedDataPath ios/build -quiet build'
     const captures = (state, overrides = {}) => ({
       'xcode-select -p': { stdout: `${join(tmp, 'Xcode.app', 'Contents', 'Developer')}\n` },
@@ -439,7 +441,7 @@ describe('run', () => {
         stdout: JSON.stringify({ devices: { 'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [sim('iPad Pro', 'ipad'), sim('iPhone 17', 'udid-17', state)] } }),
       },
       'xcrun simctl boot udid-17': {},
-      'open -a Simulator --args -CurrentDeviceUDID udid-17': {},
+      [openSimulator()]: {},
       [`plutil -extract CFBundleIdentifier raw -o - ${app()}/Info.plist`]: { stdout: 'com.acme.shop\n' },
       'xcrun simctl bootstatus udid-17 -b': {},
       [`xcrun simctl install udid-17 ${app()}`]: {},
@@ -449,6 +451,7 @@ describe('run', () => {
     const runIos = (state, { captures: overrides, status = 0 } = {}) =>
       cli(['run', 'ios'], { captures: captures(state, overrides), spawns: { [xcodebuild]: status } })
     beforeEach(async () => {
+      mkdirSync(simulatorApp(), { recursive: true })
       await cli(['init', 'ios', '--skip-install', '--url', url, '--bundle-id', 'com.acme.shop'])
     })
 
@@ -459,7 +462,7 @@ describe('run', () => {
       expect(calls).toEqual([
         'xcode-select -p',
         'xcrun simctl list devices available --json',
-        'open -a Simulator --args -CurrentDeviceUDID udid-17',
+        openSimulator(),
         `$ ${xcodebuild}`,
         `plutil -extract CFBundleIdentifier raw -o - ${app()}/Info.plist`,
         'xcrun simctl bootstatus udid-17 -b',
@@ -476,7 +479,30 @@ describe('run', () => {
     it('boots the simulator first when none is booted', async () => {
       const { code, calls } = await runIos('Shutdown')
       expect(code).toBe(0)
-      expect(calls.slice(1, 4)).toEqual(['xcrun simctl list devices available --json', 'xcrun simctl boot udid-17', 'open -a Simulator --args -CurrentDeviceUDID udid-17'])
+      expect(calls.slice(1, 4)).toEqual(['xcrun simctl list devices available --json', 'xcrun simctl boot udid-17', openSimulator()])
+    })
+
+    it("opens the simulator in Xcode 27's Device Hub", async () => {
+      rmSync(simulatorApp(), { recursive: true })
+      mkdirSync(join(tmp, 'Xcode.app', 'Contents', 'Applications', 'DeviceHub.app'), { recursive: true })
+      const { code, stderr, calls } = await runIos('Booted', { captures: { 'open devices://device/open?id=udid-17': {} } })
+      expect(stderr).toBe('')
+      expect(code).toBe(0)
+      expect(calls[2]).toBe('open devices://device/open?id=udid-17')
+    })
+
+    it('asks Launch Services for either app elsewhere, and warns when neither opens', async () => {
+      rmSync(simulatorApp(), { recursive: true })
+      const { code, stdout, stderr, calls } = await runIos('Booted', {
+        captures: {
+          'open -a Simulator --args -CurrentDeviceUDID udid-17': { ok: false, stderr: 'Unable to find application named Simulator\n' },
+          'open devices://device/open?id=udid-17': { ok: false },
+        },
+      })
+      expect(code).toBe(0)
+      expect(calls.slice(2, 4)).toEqual(['open -a Simulator --args -CurrentDeviceUDID udid-17', 'open devices://device/open?id=udid-17'])
+      expect(stderr).toBe("! Couldn't open Simulator, so iPhone 17 has no window. Open Simulator (Device Hub from Xcode 27) to see the app.\n")
+      expect(stdout).toContain('✓ Launched com.acme.shop on iPhone 17')
     })
 
     it('stops when xcodebuild fails', async () => {

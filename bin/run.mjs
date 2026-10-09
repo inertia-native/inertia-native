@@ -91,8 +91,10 @@ export async function run(argv, io) {
   const prompter = io.prompter ?? (io.stdin.isTTY ? createPrompter(io.stdin, /** @type {NodeJS.WritableStream} */ (io.stdout)) : undefined)
   try {
     if (flags.list) {
-      if (platform === 'ios') out(formatSimulators(iosSimulators(listSimulators(io))))
-      else {
+      if (platform === 'ios') {
+        xcodeDeveloperDir(io)
+        out(formatSimulators(iosSimulators(listSimulators(io))))
+      } else {
         const { adb, emulator } = androidTools(findProjectRoot(cwd) ?? cwd, env, io.os)
         out(formatAndroidTargets(androidDevices(adb, io), listAvds(emulator, io)))
       }
@@ -109,7 +111,7 @@ export async function run(argv, io) {
       warn(`! Nothing answers at ${url}: start your dev server first${dev ? ` (${dev})` : ''}. Building anyway.`)
     }
 
-    if (platform === 'ios') await runIos(root, flags.device, prompter, io, out)
+    if (platform === 'ios') await runIos(root, flags.device, prompter, io, out, warn)
     else await runAndroid(root, flags, url, prompter, io, out, warn)
     return 0
   } catch (error) {
@@ -127,15 +129,19 @@ export async function run(argv, io) {
  * @param {Prompter | undefined} prompter
  * @param {RunIO} io
  * @param {(line: string) => void} out
+ * @param {(line: string) => void} warn
  */
-async function runIos(root, device, prompter, io, out) {
+async function runIos(root, device, prompter, io, out, warn) {
   const { capture } = io
+  const developer = xcodeDeveloperDir(io)
   const sims = iosSimulators(listSimulators(io))
   const sim = await chooseSimulator(sims, { device, prompter })
   prompter?.close()
   out(`✓ Simulator: ${sim.name} (iOS ${sim.runtime})`)
   if (sim.state !== 'Booted') capture('xcrun', ['simctl', 'boot', sim.udid])
-  capture('open', ['-a', 'Simulator', '--args', '-CurrentDeviceUDID', sim.udid])
+  if (!showSimulator(developer, sim.udid, io)) {
+    warn(`! Couldn't open Simulator, so ${sim.name} has no window. Open Simulator (Device Hub from Xcode 27) to see the app.`)
+  }
 
   out('› xcodebuild (the first build downloads Swift packages and takes a few minutes)')
   const derived = join('ios', 'build')
@@ -158,11 +164,32 @@ async function runIos(root, device, prompter, io, out) {
 }
 
 /**
- * The parsed `xcrun simctl list devices available`, after checking Xcode.
+ * Opens the simulator's window: Simulator.app, or Device Hub, which replaces
+ * it from Xcode 27 (in <Xcode>/Contents/Applications) and opens devices by
+ * URL. The selected Xcode's app first: `open -a` may pick another Xcode's.
+ * @param {string} developer the selected Xcode's Contents/Developer
+ * @param {string} udid
  * @param {RunIO} io
- * @returns {SimctlList}
+ * @returns {boolean} whether one opened
  */
-function listSimulators({ os, capture }) {
+function showSimulator(developer, udid, io) {
+  const simulator = join(developer, 'Applications', 'Simulator.app')
+  const deviceHub = join(developer, '..', 'Applications', 'DeviceHub.app')
+  const device = ['--args', '-CurrentDeviceUDID', udid]
+  const url = `devices://device/open?id=${udid}`
+  const attempts = existsSync(simulator)
+    ? [[simulator, ...device]]
+    : existsSync(deviceHub)
+      ? [[url]]
+      : [['-a', 'Simulator', ...device], [url]]
+  return attempts.some((args) => io.capture('open', args).ok)
+}
+
+/**
+ * The selected Xcode's Contents/Developer, after checking it's Xcode.
+ * @param {RunIO} io
+ */
+function xcodeDeveloperDir({ os, capture }) {
   if (os !== 'darwin') fail('iOS apps build on macOS only (with Xcode).')
   const selected = capture('xcode-select', ['-p'])
   if (!selected.ok) fail("Xcode isn't installed. Install it from the App Store, open it once, then re-run this.")
@@ -172,6 +199,15 @@ function listSimulators({ os, capture }) {
         '  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer',
     )
   }
+  return selected.stdout.trim()
+}
+
+/**
+ * The parsed `xcrun simctl list devices available`.
+ * @param {RunIO} io
+ * @returns {SimctlList}
+ */
+function listSimulators({ capture }) {
   const list = capture('xcrun', ['simctl', 'list', 'devices', 'available', '--json'])
   if (!list.ok) fail(`Couldn't list simulators: ${list.stderr.trim()}\nOpen Xcode once so it can finish installing its components.`)
   return JSON.parse(list.stdout)
