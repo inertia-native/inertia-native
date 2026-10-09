@@ -50,3 +50,9 @@ npm never publishes files named `.gitignore`, so the templates ship them as
   `inertia-native run android` launches `dev.inertianative.app.MainActivity`.
   The Gradle root project is always `android`, so the app name never has to
   be a valid Gradle project name.
+
+## Android JDK
+
+Gradle runs on whatever JDK `JAVA_HOME` (or Android Studio) points at, 17 or
+newer. The template pins no daemon JVM (`gradle-daemon-jvm.properties`) and
+applies no toolchain resolver, so Gradle never downloads a JDK.
