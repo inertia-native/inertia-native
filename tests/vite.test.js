@@ -45,38 +45,41 @@ function added(before, result) {
 }
 
 describe('patchViteConfig', () => {
-  it("adds host to an existing server object (Laravel's starter kit)", () => {
+  it("adds hmr to an existing server object (Laravel's starter kit)", () => {
     const result = patchViteConfig(LARAVEL)
-    expect(added(LARAVEL, result)).toEqual(["        host: '127.0.0.1',"])
-    expect(result.contents).toContain("    server: {\n        host: '127.0.0.1',\n        watch: {")
+    expect(added(LARAVEL, result)).toEqual(["        hmr: { host: 'localhost' },"])
+    expect(result.contents).toContain("    server: {\n        hmr: { host: 'localhost' },\n        watch: {")
   })
 
   it("adds a server entry to a config arrow function's object (Rails' starter kit)", () => {
     const result = patchViteConfig(RAILS)
-    expect(result.contents).toContain('export default defineConfig(({ command }) => ({\n  server: { host: "127.0.0.1" },\n  ssr: {')
-    expect(added(RAILS, result)).toEqual(['  server: { host: "127.0.0.1" },'])
+    expect(result.contents).toContain('export default defineConfig(({ command }) => ({\n  server: { hmr: { host: "localhost" } },\n  ssr: {')
+    expect(added(RAILS, result)).toEqual(['  server: { hmr: { host: "localhost" } },'])
   })
 
   it('handles a plain exported object, inline objects and empty ones', () => {
     expect(patchViteConfig("export default {\n\tplugins: [],\n}\n")).toEqual({
       status: 'patched',
-      contents: "export default {\n\tserver: { host: '127.0.0.1' },\n\tplugins: [],\n}\n",
+      contents: "export default {\n\tserver: { hmr: { host: 'localhost' } },\n\tplugins: [],\n}\n",
     })
     expect(patchViteConfig("import { defineConfig } from 'vite'\nexport default defineConfig({ plugins: [react()] })\n")).toMatchObject({
-      contents: "import { defineConfig } from 'vite'\nexport default defineConfig({ server: { host: '127.0.0.1' }, plugins: [react()] })\n",
+      contents: "import { defineConfig } from 'vite'\nexport default defineConfig({ server: { hmr: { host: 'localhost' } }, plugins: [react()] })\n",
     })
-    expect(patchViteConfig('export default defineConfig({ server: { port: 5180 } })')).toMatchObject({
-      contents: "export default defineConfig({ server: { host: '127.0.0.1', port: 5180 } })",
+    expect(patchViteConfig("export default defineConfig({ server: { host: '0.0.0.0', port: 5180 } })")).toMatchObject({
+      contents: "export default defineConfig({ server: { hmr: { host: 'localhost' }, host: '0.0.0.0', port: 5180 } })",
     })
-    expect(patchViteConfig('export default defineConfig({})')).toMatchObject({ contents: "export default defineConfig({ server: { host: '127.0.0.1' } })" })
+    expect(patchViteConfig('export default defineConfig({ server: { hmr: { port: 5181 } } })')).toMatchObject({
+      contents: "export default defineConfig({ server: { hmr: { host: 'localhost', port: 5181 } } })",
+    })
+    expect(patchViteConfig('export default defineConfig({})')).toMatchObject({ contents: "export default defineConfig({ server: { hmr: { host: 'localhost' } } })" })
     expect(patchViteConfig('export default defineConfig({ server: {} })')).toMatchObject({
-      contents: "export default defineConfig({ server: { host: '127.0.0.1' } })",
+      contents: "export default defineConfig({ server: { hmr: { host: 'localhost' } } })",
     })
   })
 
   it('keeps a comment on the opening line where it is', () => {
     const source = 'export default defineConfig({ // config\n  plugins: [],\n})\n'
-    expect(patchViteConfig(source)).toMatchObject({ contents: "export default defineConfig({ // config\n  server: { host: '127.0.0.1' },\n  plugins: [],\n})\n" })
+    expect(patchViteConfig(source)).toMatchObject({ contents: "export default defineConfig({ // config\n  server: { hmr: { host: 'localhost' } },\n  plugins: [],\n})\n" })
   })
 
   it('is already patched after patching, and changes nothing then', () => {
@@ -87,13 +90,15 @@ describe('patchViteConfig', () => {
     }
   })
 
-  it.each([["host: '127.0.0.1'"], ['host: "127.0.0.1"'], ["host: '0.0.0.0'"], ['host: true']])('accepts an existing %s', (host) => {
-    expect(patchViteConfig(`export default defineConfig({\n  server: {\n    port: 5180,\n    ${host},\n  },\n})\n`)).toEqual({ status: 'already_patched' })
+  it.each([["host: 'localhost'"], ['host: "localhost"'], ["host: '127.0.0.1'"]])('accepts an existing hmr %s', (host) => {
+    expect(patchViteConfig(`export default defineConfig({\n  server: {\n    port: 5180,\n    hmr: { ${host} },\n  },\n})\n`)).toEqual({ status: 'already_patched' })
   })
 
   it.each([
-    ["export default defineConfig({ server: { host: 'localhost' } })", "it already sets server.host to 'localhost'"],
-    ['export default defineConfig({ server: { host: process.env.HOST } })', 'it already sets server.host to process.env.HOST'],
+    ["export default defineConfig({ server: { hmr: { host: 'app.test' } } })", "it already sets server.hmr.host to 'app.test'"],
+    ['export default defineConfig({ server: { hmr: { host: process.env.HOST } } })', 'it already sets server.hmr.host to process.env.HOST'],
+    ['export default defineConfig({ server: { hmr: false } })', "its server.hmr option isn't written out as an object"],
+    ['export default defineConfig({ server: { hmr: { ...base } } })', 'its server.hmr option spreads in other objects or has computed keys or methods'],
     ['const server = {}\nexport default defineConfig({ server })', "its server option isn't written out as an object"],
     ['export default defineConfig({ server: serverOptions })', "its server option isn't written out as an object"],
     ['export default defineConfig({ server: { ...base } })', 'its server option spreads in other objects or has computed keys or methods'],
@@ -123,8 +128,8 @@ export default defineConfig({
 })
 `
     const result = patchViteConfig(source)
-    expect(added(source, result)).toEqual(["  server: { host: '127.0.0.1' },"])
-    expect(result.contents).toContain("export default defineConfig({\n  server: { host: '127.0.0.1' },\n  define:")
+    expect(added(source, result)).toEqual(["  server: { hmr: { host: 'localhost' } },"])
+    expect(result.contents).toContain("export default defineConfig({\n  server: { hmr: { host: 'localhost' } },\n  define:")
   })
 
   it('keeps CRLF line endings', () => {

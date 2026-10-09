@@ -533,10 +533,10 @@ describe('prompts', () => {
   })
 })
 
-describe('Vite host for Android', () => {
+describe('Vite HMR host for Android', () => {
   const VITE = "import { defineConfig } from 'vite'\n\nexport default defineConfig({\n  plugins: [],\n})\n"
-  const PATCHED = "import { defineConfig } from 'vite'\n\nexport default defineConfig({\n  server: { host: '127.0.0.1' },\n  plugins: [],\n})\n"
-  const QUESTION = 'Set server.host to 127.0.0.1 in vite.config.ts, so Android can load scripts from Vite?'
+  const PATCHED = "import { defineConfig } from 'vite'\n\nexport default defineConfig({\n  server: { hmr: { host: 'localhost' } },\n  plugins: [],\n})\n"
+  const QUESTION = 'Set server.hmr.host to localhost in vite.config.ts, so Android can load scripts from Vite?'
   const app = (files = { 'vite.config.ts': VITE }) => project('acme-shop', { artisan: '', 'resources/js/app.tsx': ENTRY, ...files })
 
   it('changes the Vite config with --yes', async () => {
@@ -544,7 +544,7 @@ describe('Vite host for Android', () => {
     const { code, stdout, stderr } = await cli(['init', '--yes'], dir)
     expect(code).toBe(0)
     expect(stderr).toBe('')
-    expect(stdout).toContain('✓ Patched resources/js/app.tsx\n✓ Set server.host to 127.0.0.1 in vite.config.ts\n✓ Created ios/ and android/')
+    expect(stdout).toContain('✓ Patched resources/js/app.tsx\n✓ Set server.hmr.host to localhost in vite.config.ts\n✓ Created ios/ and android/')
     expect(read(dir, 'vite.config.ts')).toBe(PATCHED)
   })
 
@@ -561,7 +561,7 @@ describe('Vite host for Android', () => {
     const { stderr } = await cli(['init', 'android'], dir, { prompter: fakePrompter({ [QUESTION]: false }) })
     expect(read(dir, 'vite.config.ts')).toBe(VITE)
     expect(stderr).toBe(
-      "! Android can't load scripts from Vite at [::1], its default address on macOS. For Android, set server.host to '127.0.0.1' in vite.config.ts.\n",
+      "! Android can't load scripts from Vite at [::1], its default address on macOS. For Android, set server.hmr.host to 'localhost' in vite.config.ts.\n",
     )
   })
 
@@ -570,7 +570,7 @@ describe('Vite host for Android', () => {
     const { code, stderr } = await cli(['init'], dir)
     expect(code).toBe(0)
     expect(read(dir, 'vite.config.ts')).toBe(VITE)
-    expect(stderr).toContain("For Android, set server.host to '127.0.0.1' in vite.config.ts (or re-run with --yes).\n")
+    expect(stderr).toContain("For Android, set server.hmr.host to 'localhost' in vite.config.ts (or re-run with --yes).\n")
   })
 
   it('does nothing for iOS only', async () => {
@@ -587,19 +587,19 @@ describe('Vite host for Android', () => {
     const prompter = fakePrompter()
     const { stdout } = await cli(['init', 'android'], dir, { prompter })
     expect(prompter.asked.map((q) => q.label)).not.toContain(QUESTION)
-    expect(stdout).toContain('✓ vite.config.ts already sets server.host\n')
+    expect(stdout).toContain('✓ vite.config.ts already sets server.hmr.host\n')
     expect(read(dir, 'vite.config.ts')).toBe(PATCHED)
   })
 
   it('explains why when it cannot change the file', async () => {
-    const source = "export default defineConfig({ server: { host: 'localhost' } })\n"
+    const source = "export default defineConfig({ server: { hmr: { host: 'app.test' } } })\n"
     const dir = app({ 'vite.config.js': source })
     const { code, stderr } = await cli(['init', 'android', '--yes'], dir)
     expect(code).toBe(0)
     expect(read(dir, 'vite.config.js')).toBe(source)
     expect(stderr).toContain(
-      "! Couldn't change vite.config.js: it already sets server.host to 'localhost'. Android can't load scripts from Vite at [::1], " +
-        "its default address on macOS; for Android, set server.host to '127.0.0.1' there by hand.",
+      "! Couldn't change vite.config.js: it already sets server.hmr.host to 'app.test'. Android can't load scripts from Vite at [::1], " +
+        "its default address on macOS; for Android, set server.hmr.host to 'localhost' there by hand.",
     )
   })
 
@@ -620,7 +620,7 @@ describe('Vite host for Android', () => {
     const before = snapshot(dir)
     const { stdout } = await cli(['init', '--yes'], dir)
     expect(snapshot(dir)).toEqual(before)
-    expect(stdout).toContain('✓ vite.config.ts already sets server.host')
+    expect(stdout).toContain('✓ vite.config.ts already sets server.hmr.host')
   })
 })
 

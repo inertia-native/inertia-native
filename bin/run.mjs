@@ -317,8 +317,8 @@ export function reversePorts(root, url) {
   const viteRuby = readJson(join(root, 'config', 'vite.json'))
   if (vite?.hostname === '[::1]') {
     warning =
-      `! Vite listens on ${vite.host} (IPv6) only, which Android can't reach: the app will show "Error loading page".\n` +
-      "  Add server: { host: '127.0.0.1' } to your vite.config, restart the dev server and run this again."
+      `! Vite puts ${vite.host} script URLs in the page, which Android can't load: the app will show "Error loading page".\n` +
+      "  Add server: { hmr: { host: 'localhost' } } to your vite.config, restart the dev server and run this again."
   } else if (vite && local(vite)) {
     ports.add(port(vite))
   } else if (viteRuby) {

@@ -9,7 +9,7 @@ import { findEntrypoints, MANUAL_LINES, patchEntrypoint, SEARCH_DIRS } from './e
 import { addCommand, defaultUrl, devCommand, findProjectRoot, packageManager, readPackageJson, writePackageJson } from './project.mjs'
 import { createPrompter } from './prompt.mjs'
 import { bundleIdFromName, invalid, nameFromDirectory, PLATFORMS, RULES, TEMPLATES, writeShell } from './shell.mjs'
-import { findViteConfig, patchViteConfig, VITE_HOST } from './vite.mjs'
+import { findViteConfig, HMR_HOST, patchViteConfig } from './vite.mjs'
 
 export const PACKAGE = 'inertia-native'
 const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version
@@ -19,8 +19,8 @@ export const INIT_USAGE = `Usage: npx inertia-native init [ios|android|both] [op
 Sets up inertia-native in your Inertia app (the directory with package.json):
 adds the npm package, patches the file that calls createInertiaApp(),
 creates the native shells ios/ and android/, and adds "ios" and "android"
-scripts to package.json. For Android it also offers to set server.host to
-127.0.0.1 in your Vite config: Android can't load scripts from Vite at
+scripts to package.json. For Android it also offers to set server.hmr.host
+to localhost in your Vite config: Android can't load scripts from Vite at
 [::1], its default address on macOS. In a terminal it asks for anything not
 given as a flag. Safe to re-run.
 
@@ -36,7 +36,7 @@ Options:
   --skip-install       Don't add the inertia-native npm package
   --force              Replace existing ios/ and android/, after asking in a
                        terminal (default: skip them)
-  -y, --yes            Don't ask; use the defaults and change the Vite host
+  -y, --yes            Don't ask; use the defaults and change the Vite config
   -h, --help           Show this help`
 
 /**
@@ -190,14 +190,14 @@ export async function init(argv, io) {
       values = { name, bundleId, url }
     }
 
-    // Vite host, for Android only.
+    // Vite HMR host, for Android only.
     const viteConfig = platforms.includes('android') ? findViteConfig(root) : undefined
     if (viteConfig) {
       const result = patchViteConfig(readFileSync(viteConfig, 'utf8'))
       const apply =
         result.status === 'patched' &&
         (flags.yes ||
-          (prompter ? await prompter.confirm(`Set server.host to ${VITE_HOST} in ${show(viteConfig)}, so Android can load scripts from Vite?`) : false))
+          (prompter ? await prompter.confirm(`Set server.hmr.host to ${HMR_HOST} in ${show(viteConfig)}, so Android can load scripts from Vite?`) : false))
       vite = { path: viteConfig, result, apply, asked: Boolean(prompter) }
     }
   } finally {
@@ -247,20 +247,20 @@ export async function init(argv, io) {
     )
   }
 
-  // 5. Vite host
+  // 5. Vite HMR host
   if (vite) {
     const file = show(vite.path)
     const { result } = vite
     const why = `Android can't load scripts from Vite at [::1], its default address on macOS`
     if (result.status === 'patched' && vite.apply) {
       writeFileSync(vite.path, result.contents)
-      out(`✓ Set server.host to ${VITE_HOST} in ${file}`)
+      out(`✓ Set server.hmr.host to ${HMR_HOST} in ${file}`)
     } else if (result.status === 'already_patched') {
-      out(`✓ ${file} already sets server.host`)
+      out(`✓ ${file} already sets server.hmr.host`)
     } else if (result.status === 'patched') {
-      warn(`! ${why}. For Android, set server.host to '${VITE_HOST}' in ${file}${vite.asked ? '' : ' (or re-run with --yes)'}.`)
+      warn(`! ${why}. For Android, set server.hmr.host to '${HMR_HOST}' in ${file}${vite.asked ? '' : ' (or re-run with --yes)'}.`)
     } else {
-      warn(`! Couldn't change ${file}: ${result.reason}. ${why}; for Android, set server.host to '${VITE_HOST}' there by hand.`)
+      warn(`! Couldn't change ${file}: ${result.reason}. ${why}; for Android, set server.hmr.host to '${HMR_HOST}' there by hand.`)
     }
   }
 

@@ -1,13 +1,15 @@
-// Makes the Vite dev server listen on 127.0.0.1 for Android. On macOS Vite
-// binds `localhost` to [::1], and laravel-vite-plugin and rails-vite-plugin
-// then put http://[::1]:5173 script URLs in the page, which Android can't
-// load: the app shows a blank page. Same rules as the entrypoint patch:
-// idempotent, keeps the file's style, refuses whenever the result could be
-// wrong.
+// Makes Vite put localhost script URLs in the page, for Android. On macOS
+// Vite binds `localhost` to [::1], and laravel-vite-plugin and
+// rails-vite-plugin then put http://[::1]:5173 script URLs in the page, which
+// Android can't load: the app shows a blank page. `server.hmr.host` changes
+// only those URLs, not where Vite listens, so Docker setups like Sail keep
+// working; `adb reverse` takes the device's localhost to Vite. Same rules as
+// the entrypoint patch: idempotent, keeps the file's style, refuses whenever
+// the result could be wrong.
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-export const VITE_HOST = '127.0.0.1'
+export const HMR_HOST = 'localhost'
 
 // Vite's own lookup order.
 const CONFIG_FILES = ['vite.config.js', 'vite.config.mjs', 'vite.config.ts', 'vite.config.cjs', 'vite.config.mts', 'vite.config.cts']
@@ -26,9 +28,9 @@ export function findViteConfig(root) {
 }
 
 /**
- * Sets server.host to 127.0.0.1 in a Vite config whose `export default` is an
- * object, `defineConfig({…})` or `defineConfig((…) => ({…}))`: inside an
- * existing `server: {…}`, else as a new first `server` entry.
+ * Sets server.hmr.host to localhost in a Vite config whose `export default`
+ * is an object, `defineConfig({…})` or `defineConfig((…) => ({…}))`, adding
+ * `server` and `hmr` as first entries where they're missing.
  * @param {string} source
  * @returns {import('./entrypoint.mjs').PatchResult}
  */
@@ -39,7 +41,7 @@ export function patchViteConfig(source) {
   if (typeof open === 'string') return unpatchable(open)
 
   const quote = source.match(/^import\s[^'"]*(['"])/m)?.[1] ?? "'"
-  const result = setNested(source, code, open, ['server', 'host'], `${quote}${VITE_HOST}${quote}`)
+  const result = setPath(source, code, open, ['server', 'hmr', 'host'], `${quote}${HMR_HOST}${quote}`)
   if (result.status === 'patched' && patchViteConfig(result.contents).status !== 'already_patched') {
     return unpatchable("the change couldn't be checked")
   }
@@ -49,41 +51,43 @@ export function patchViteConfig(source) {
 /** Entries that may set any key. @param {Entry} entry */
 const unclear = (entry) => entry.kind === 'spread' || entry.kind === 'computed' || entry.kind === 'other'
 
-/** Hosts Android can load scripts from: 127.0.0.1 or all addresses. @param {unknown} host */
-const reachable = (host) => host === VITE_HOST || host === '0.0.0.0' || host === true
+/** Page URL hosts that `adb reverse` takes to this machine. @param {string | undefined} host */
+const reachable = (host) => host === HMR_HOST || host === '127.0.0.1'
 
 /**
- * Sets `outer.inner` to `value` in the object literal opening at `open`,
- * adding `outer` when it's missing.
+ * Sets the property at `path` to `value` in the object literal opening at
+ * `open`, adding the objects on the way that are missing.
  * @param {string} source
  * @param {string} code `source` masked by maskCode
  * @param {number} open
- * @param {[string, string]} path
+ * @param {string[]} path
  * @param {string} value literal to insert
+ * @param {string[]} [parents] keys walked so far, for messages
  * @returns {import('./entrypoint.mjs').PatchResult}
  */
-function setNested(source, code, open, [outer, inner], value) {
-  const eol = source.includes('\r\n') ? '\r\n' : '\n'
-  const top = readObject(source, code, open)
-  if (!top) return unpatchable("its config object couldn't be read")
-  if (top.entries.some(unclear)) return unpatchable('its config object spreads in other objects or has computed keys or methods')
-  const found = top.entries.filter((e) => e.key === outer)
-  if (found.length > 1) return unpatchable(`it sets ${outer} more than once`)
-  if (!found.length) return insertFirst(source, code, top, `${outer}: { ${inner}: ${value} }`, eol)
+function setPath(source, code, open, path, value, parents = []) {
+  const object = readObject(source, code, open)
+  const name = parents.length ? `${parents.join('.')} option` : 'config object'
+  if (!object) return unpatchable(`its ${name} couldn't be read`)
+  if (object.entries.some(unclear)) return unpatchable(`its ${name} spreads in other objects or has computed keys or methods`)
+  const [key, ...rest] = path
+  const dotted = [...parents, key].join('.')
+  const found = object.entries.filter((e) => e.key === key)
+  if (found.length > 1) return unpatchable(`it sets ${dotted} more than once`)
+  if (!found.length) {
+    const entry = path.slice(0, -1).reduceRight((inner, outer) => `${outer}: { ${inner} }`, `${path.at(-1)}: ${value}`)
+    return insertFirst(source, code, object, entry, source.includes('\r\n') ? '\r\n' : '\n')
+  }
 
   const entry = found[0]
-  if (entry.kind !== 'property' || code[entry.value] !== '{') return unpatchable(`its ${outer} option isn't written out as an object`)
-  const nested = readObject(source, code, entry.value)
-  if (!nested || code.slice(nested.close + 1, entry.end).trim()) return unpatchable(`its ${outer} option isn't written out as an object`)
-  if (nested.entries.some(unclear)) return unpatchable(`its ${outer} option spreads in other objects or has computed keys or methods`)
-  const hosts = nested.entries.filter((e) => e.key === inner)
-  if (hosts.length) {
-    const current = source.slice(hosts[0].value, hosts[0].end).trim()
-    const literal = current.match(/^(['"])([^'"]*)\1$/)?.[2] ?? (current === 'true' ? true : undefined)
-    if (hosts.length === 1 && reachable(literal)) return { status: 'already_patched' }
-    return unpatchable(`it already sets ${outer}.${inner} to ${current}`)
+  if (!rest.length) {
+    const current = entry.kind === 'property' ? source.slice(entry.value, entry.end).trim() : key
+    if (reachable(current.match(/^(['"])([^'"]*)\1$/)?.[2])) return { status: 'already_patched' }
+    return unpatchable(`it already sets ${dotted} to ${current}`)
   }
-  return insertFirst(source, code, nested, `${inner}: ${value}`, eol)
+  const nested = entry.kind === 'property' && code[entry.value] === '{' && readObject(source, code, entry.value)
+  if (!nested || code.slice(nested.close + 1, entry.end).trim()) return unpatchable(`its ${dotted} option isn't written out as an object`)
+  return setPath(source, code, entry.value, rest, value, [...parents, key])
 }
 
 /**

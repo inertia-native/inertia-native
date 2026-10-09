@@ -336,13 +336,13 @@ describe('reversePorts', () => {
   it.each([
     ['public/hot', 'http://[::1]:5173'],
     ['tmp/rails-vite.json', JSON.stringify({ url: 'http://[::1]:5173' })],
-  ])('explains the fix when Vite listens on [::1] only (%s)', (path, content) => {
+  ])('explains the fix when Vite puts [::1] URLs in the page (%s)', (path, content) => {
     file('vite.config.ts')
     file(path, content)
     const { ports, warning } = reversePorts(tmp, 'http://localhost:8000')
     expect(ports).toEqual([8000])
-    expect(warning).toContain("Vite listens on [::1]:5173 (IPv6) only")
-    expect(warning).toContain("server: { host: '127.0.0.1' }")
+    expect(warning).toContain('Vite puts [::1]:5173 script URLs in the page')
+    expect(warning).toContain("server: { hmr: { host: 'localhost' } }")
   })
 
   it("adds vite_ruby's dev server port (HMR)", () => {
