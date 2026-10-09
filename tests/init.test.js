@@ -13,7 +13,6 @@ import { bundleIdFromName, nameFromDirectory } from '../bin/shell.mjs'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const BIN = join(ROOT, 'bin', 'inertia-native.mjs')
-const FILLER = join(ROOT, 'scripts', 'fill-template.mjs')
 const NAME_RULE = /^[A-Za-z0-9][A-Za-z0-9 .-]{0,29}$/
 const BUNDLE_RULE = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/
 const ENTRY = `import { createInertiaApp } from '@inertiajs/react';
@@ -666,14 +665,40 @@ describe('existing shells', () => {
   })
 })
 
-describe.each(['ios', 'android'])('%s output', (platform) => {
+describe.each([
+  ['ios', {
+    'App/AppConfig.swift': ['URL(string: "http://localhost:8000")'],
+    'App.xcodeproj/project.pbxproj': ['INFOPLIST_KEY_CFBundleDisplayName = "Acme 2.0"', 'PRODUCT_BUNDLE_IDENTIFIER = "com.acme.app"'],
+  }],
+  ['android', {
+    'app/build.gradle.kts': ['applicationId = "com.acme.app"', '"BASE_URL", "\\"http://localhost:8000\\""'],
+    'app/src/main/res/values/strings.xml': ['<string name="app_name">Acme 2.0</string>'],
+    'settings.gradle.kts': ['rootProject.name = "Acme 2.0"'],
+  }],
+])('%s output', (platform, filled) => {
   const values = ['--name', 'Acme 2.0', '--bundle-id', 'com.acme.app', '--url', 'http://localhost:8000']
+  const template = join(ROOT, 'templates', platform)
 
-  it('is byte-identical to scripts/fill-template.mjs (contents and modes)', async () => {
+  it('fills in the values', async () => {
     const dir = project()
-    execFileSync(process.execPath, [FILLER, platform, join(tmp, 'reference'), ...values])
     expect((await cli(['init', platform, ...values], dir)).code).toBe(0)
-    expect(snapshot(join(dir, platform))).toEqual(snapshot(join(tmp, 'reference')))
+    for (const [file, lines] of Object.entries(filled)) {
+      for (const line of lines) expect(read(dir, platform, file), file).toContain(line)
+    }
+  })
+
+  it('copies every other file as is, modes included', async () => {
+    const dir = project()
+    await cli(['init', platform, ...values], dir)
+    const { files } = JSON.parse(read(template, 'inertia-native-template.json'))
+    const expected = {}
+    for (const [path, entry] of Object.entries(snapshot(template))) {
+      if (path === 'inertia-native-template.json' || files.includes(path)) continue
+      expected[path.replace(/(^|\/)gitignore$/, '$1.gitignore')] = entry
+    }
+    const output = snapshot(join(dir, platform))
+    expect(Object.keys(output).sort()).toEqual([...Object.keys(expected), ...files].sort())
+    expect(output).toMatchObject(expected)
   })
 
   it('renames gitignore to .gitignore, drops the manifest, leaves no placeholders', async () => {
@@ -689,12 +714,6 @@ describe.each(['ios', 'android'])('%s output', (platform) => {
       expect(readFileSync(full, 'utf8'), file).not.toMatch(/__(APP_NAME|BUNDLE_ID|BASE_URL)__/)
     }
   })
-})
-
-it('keeps gradlew executable', async () => {
-  const dir = project()
-  await cli(['init', 'android'], dir)
-  expect(statSync(join(dir, 'android', 'gradlew')).mode & 0o111).toBe(0o111)
 })
 
 it('runs as an executable bin', () => {

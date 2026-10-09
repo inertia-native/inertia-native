@@ -1,7 +1,5 @@
 // Native shell templates: value rules, defaults and the copy itself, per
-// templates/CONTRACT.md. The copy mirrors scripts/fill-template.mjs, which
-// stays standalone because the server packages' test suites copy that one
-// file on its own; tests/init.test.js checks both produce identical trees.
+// templates/CONTRACT.md.
 import { cpSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -69,8 +67,8 @@ export function bundleIdFromName(name) {
 }
 
 /**
- * Copies one template into `target` (which must not exist), per
- * templates/CONTRACT.md: same steps as scripts/fill-template.mjs.
+ * Copies one template into `target` (which must not exist), filling in the
+ * values.
  * @param {string} source
  * @param {string} target
  * @param {{ name: string, bundleId: string, url: string }} values
