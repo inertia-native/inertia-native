@@ -1,0 +1,34 @@
+{
+  "name": "create-inertia-native",
+  "version": "1.0.0",
+  "description": "Set up inertia-native in an Inertia app: npm init inertia-native",
+  "type": "module",
+  "bin": {
+    "create-inertia-native": "index.mjs"
+  },
+  "files": [
+    "index.mjs"
+  ],
+  "scripts": {
+    "lint": "oxlint -c ../../.oxlintrc.json index.mjs"
+  },
+  "keywords": [
+    "inertia-native",
+    "hotwire-native",
+    "inertia"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/inertia-native/inertia-native.git",
+    "directory": "packages/create-inertia-native"
+  },
+  "homepage": "https://inertia-native.dev",
+  "bugs": "https://github.com/inertia-native/inertia-native/issues",
+  "engines": {
+    "node": ">=20.12"
+  },
+  "dependencies": {
+    "@inertia-native/cli": "^1.0.0"
+  }
+}

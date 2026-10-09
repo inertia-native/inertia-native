@@ -1,7 +1,7 @@
 # Native app templates
 
 `templates/ios/` and `templates/android/` are minimal Hotwire Native apps.
-`npx inertia-native init` copies them to the app's `ios/` and `android/` and
+`inertia-native init` copies them to the app's `ios/` and `android/` and
 fills in a few values (`bin/shell.mjs`). Keep these rules when changing them.
 
 ## Placeholders
