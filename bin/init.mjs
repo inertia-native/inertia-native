@@ -12,6 +12,7 @@ import { bundleIdFromName, invalid, nameFromDirectory, PLATFORMS, RULES, TEMPLAT
 import { findViteConfig, patchViteConfig, VITE_HOST } from './vite.mjs'
 
 export const PACKAGE = 'inertia-native'
+const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version
 
 export const INIT_USAGE = `Usage: npx inertia-native init [ios|android|both] [options]
 
@@ -316,14 +317,16 @@ export async function init(argv, io) {
 
 /**
  * What to install: the package that `npx --package <spec>` ran this CLI from
- * (a tarball or a version), else inertia-native from the registry.
+ * (a tarball or a version), else this version of inertia-native from the
+ * registry, whose templates were just copied.
  * @param {Record<string, string | undefined>} env
  * @param {string} cwd
  */
 export function installSpec(env, cwd) {
+  const own = `${PACKAGE}@^${VERSION}`
   const spec = env.npm_config_package
-  if (env.npm_command !== 'exec' || !spec || /[\s,]/.test(spec)) return PACKAGE
+  if (env.npm_command !== 'exec' || !spec || /[\s,]/.test(spec)) return own
   if (/^inertia-native@[\w.^~<>=*-]+$/.test(spec)) return spec
   if (/\.(tgz|tar\.gz)$/.test(spec)) return /^https?:\/\//.test(spec) ? spec : resolve(cwd, spec.replace(/^file:/, ''))
-  return PACKAGE
+  return own
 }
