@@ -1,6 +1,11 @@
 import PageView from './page-view.js'
 import { log } from './log.js'
 
+// How turbo.js tells native a cold boot's page is on screen (iOS: pageLoaded;
+// Android: visitRenderedForColdBoot, called back by native). Native titles the
+// screen with document.title at that point.
+const COLD_BOOT_REPORTS = ['pageLoaded', 'visitRenderedForColdBoot']
+
 // Glue between turbo.js (the native adapter) and the Inertia driver.
 export default class Session {
   view = new PageView(this, document.documentElement)
@@ -10,6 +15,19 @@ export default class Session {
   registerAdapter(adapter) {
     log('native', 'adapter registered (turbo.js connected)')
     this.adapter = adapter
+    this.#holdColdBootReports(adapter)
+  }
+
+  // turbo.js connects as soon as this bundle has run, before Inertia renders
+  // the first page and its <Head> title. Hold the reports until it has.
+  #holdColdBootReports(adapter) {
+    for (const name of COLD_BOOT_REPORTS) {
+      const report = adapter[name]
+      if (typeof report !== 'function') continue
+      adapter[name] = (...args) => {
+        this.driver.firstPageRendered.then(() => report.apply(adapter, args))
+      }
+    }
   }
 
   registerDriver(driver) {
