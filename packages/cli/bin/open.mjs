@@ -4,7 +4,7 @@ import { accessSync, constants, existsSync, statSync } from 'node:fs'
 import { delimiter, join, relative } from 'node:path'
 import { parseArgs } from 'node:util'
 
-import { findProjectRoot, packageManager } from './project.mjs'
+import { findProjectRoot, packageManager, runCommand } from './project.mjs'
 import { bakedUrl, reversePorts } from './run.mjs'
 
 export const OPEN_USAGE = `Usage: npx inertia-native open <ios|android>
@@ -79,7 +79,7 @@ export async function open(argv, io) {
     const ports = reversePorts(root, bakedUrl(root, 'android')).ports
     if (ports.length) {
       const commands = ports.map((port) => `adb reverse tcp:${port} tcp:${port}`).join(' && ')
-      warn(`! Android Studio doesn't forward ports. Once per emulator boot, run: ${commands} (or ${packageManager(root)} run android once)`)
+      warn(`! Android Studio doesn't forward ports. Once per emulator boot, run: ${commands} (or ${runCommand(await packageManager(root, env), 'android')} once)`)
     }
   }
   return status

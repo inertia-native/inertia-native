@@ -6,7 +6,7 @@ import { basename, join, relative, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 
 import { findEntrypoints, initializer, MANUAL_LINES, patchEntrypoint, SEARCH_DIRS } from './entrypoint.mjs'
-import { addCommand, defaultUrl, devCommand, findProjectRoot, packageManager, readPackageJson, writePackageJson } from './project.mjs'
+import { addCommand, defaultUrl, devCommand, findProjectRoot, packageManager, readPackageJson, runCommand, writePackageJson } from './project.mjs'
 import { createPrompter } from './prompt.mjs'
 import { bundleIdFromName, invalid, nameFromDirectory, PLATFORMS, RULES, TEMPLATES, writeShell } from './shell.mjs'
 import { findViteConfig, HMR_HOST, patchViteConfig } from './vite.mjs'
@@ -210,7 +210,7 @@ export async function init(argv, io) {
   }
 
   let failed = false
-  const pm = packageManager(root)
+  const pm = await packageManager(root, env)
 
   // 3. Packages
   const pkg = readPackageJson(root)
@@ -233,7 +233,7 @@ export async function init(argv, io) {
     const childEnv = { ...env }
     delete childEnv.npm_config_package // set by `npx --package`, not meant for the install
     if (exec(cmd, args, { cwd: root, env: childEnv }) === 0) {
-      out(`✓ Added ${name} to package.json (${pm})`)
+      out(`✓ Added ${name} to package.json (${pm.name})`)
     } else {
       warn(`✗ Couldn't add ${name}. Run this yourself: ${command}`)
       failed = true
@@ -315,7 +315,7 @@ export async function init(argv, io) {
 
   // 8. Next step
   const dev = devCommand(root)
-  const [first, ...others] = platforms.map((platform) => `${pm} run ${platform}`)
+  const [first, ...others] = platforms.map((platform) => runCommand(pm, platform))
   out()
   out(`Next: start your dev server${dev ? ` (${dev})` : ''}, then run: ${first}${others.length ? ` (or ${others.join(', ')})` : ''}`)
   return failed ? 1 : 0

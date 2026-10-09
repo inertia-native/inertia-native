@@ -45,5 +45,8 @@
     "inertia-native": {
       "optional": true
     }
+  },
+  "dependencies": {
+    "package-manager-detector": "^1.9.0"
   }
 }

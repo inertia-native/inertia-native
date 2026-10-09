@@ -2,6 +2,9 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 
+import { resolveCommand } from 'package-manager-detector/commands'
+import { detect, resolveAgent } from 'package-manager-detector/detect'
+
 /**
  * The nearest directory at or above `dir` that has a package.json.
  * @param {string} dir
@@ -34,21 +37,21 @@ export function devCommand(root) {
   return undefined
 }
 
-/** @typedef {'npm' | 'pnpm' | 'yarn' | 'bun'} PackageManager */
+/** @typedef {{ name: string, agent: import('package-manager-detector').Agent }} PackageManager */
 
 /**
- * The package manager, from the lockfile (then the packageManager field).
+ * The package manager, from the nearest lockfile or packageManager field at
+ * or above `root` (so a workspace member gets the workspace's), then the one
+ * that runs this CLI (`pnpm dlx`, `yarn create`), then npm.
  * @param {string} root
- * @returns {PackageManager}
+ * @param {Record<string, string | undefined>} env
+ * @returns {Promise<PackageManager>}
  */
-export function packageManager(root) {
-  if (existsSync(join(root, 'pnpm-lock.yaml'))) return 'pnpm'
-  if (existsSync(join(root, 'yarn.lock'))) return 'yarn'
-  if (existsSync(join(root, 'bun.lock')) || existsSync(join(root, 'bun.lockb'))) return 'bun'
-  if (existsSync(join(root, 'package-lock.json'))) return 'npm'
-  const field = String(readPackageJson(root).data.packageManager ?? '')
-  const name = field.split('@')[0]
-  return name === 'pnpm' || name === 'yarn' || name === 'bun' ? name : 'npm'
+export async function packageManager(root, env) {
+  const found = await detect({ cwd: root })
+  if (found) return found
+  const [name, version] = String(env.npm_config_user_agent).split(' ')[0].split('/')
+  return resolveAgent(/** @type {import('package-manager-detector').AgentName} */ (name), version) ?? { name: 'npm', agent: 'npm' }
 }
 
 /**
@@ -59,7 +62,20 @@ export function packageManager(root) {
  * @returns {[string, string[]]}
  */
 export function addCommand(pm, spec, dev = false) {
-  return [pm, [pm === 'npm' ? 'install' : 'add', ...(dev ? ['-D'] : []), spec]]
+  const { command, args } = /** @type {import('package-manager-detector').ResolvedCommand} */ (
+    resolveCommand(pm.agent, 'add', dev ? ['-D', spec] : [spec])
+  )
+  return [command, args]
+}
+
+/**
+ * How to run a package.json script, e.g. `pnpm run ios`.
+ * @param {PackageManager} pm
+ * @param {string} script
+ */
+export function runCommand(pm, script) {
+  const { command, args } = /** @type {import('package-manager-detector').ResolvedCommand} */ (resolveCommand(pm.agent, 'run', [script]))
+  return [command, ...args].join(' ')
 }
 
 /**
