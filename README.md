@@ -87,9 +87,12 @@ components. Native replies to the message you sent, which calls its `callback`:
 | --------------- | ------------------------------------------------------------------ | -------------------------------------- |
 | `button`        | `connect` `{ title, side? }` (`side: 'left'` is iOS only)          | on each tap                            |
 | `form`          | `connect` `{ submitTitle }`; `submitEnabled`, `submitDisabled`     | on each tap of the submit button       |
-| `menu`          | `display` `{ title, items: [{ title, index }] }`                   | `{ selectedIndex }`; nothing on cancel |
+| `menu`          | `display` `{ title, items: [{ title, index }], source? }`          | `{ selectedIndex }`; nothing on cancel |
 | `overflow-menu` | `connect` `{ label }`                                              | on each tap                            |
 | `alert`         | `show` `{ title, description?, destructive?, confirm?, dismiss? }` | on confirm; nothing on dismiss         |
+
+`source` is the tapped element's `getBoundingClientRect()` (`{ x, y, width,
+height }`); where the menu shows as a popover (iPad), it points there.
 
 ```jsx
 import { useBridgeComponent } from 'inertia-native/react'

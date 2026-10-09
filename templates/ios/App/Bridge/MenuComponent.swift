@@ -4,6 +4,7 @@
 import Foundation
 import HotwireNative
 import UIKit
+import WebKit
 
 /// Bridge component to display a native bottom sheet menu,
 /// which will send the selected index of the tapped menu item back to the web.
@@ -29,10 +30,10 @@ final class MenuComponent: BridgeComponent {
 
     private func handleDisplayEvent(message: Message) {
         guard let data: MessageData = message.data() else { return }
-        showAlertSheet(with: data.title, items: data.items)
+        showAlertSheet(with: data.title, items: data.items, source: data.source)
     }
 
-    private func showAlertSheet(with title: String, items: [Item]) {
+    private func showAlertSheet(with title: String, items: [Item], source: Source?) {
         let alertController = UIAlertController(
             title: title,
             message: nil,
@@ -49,12 +50,19 @@ final class MenuComponent: BridgeComponent {
         let cancelAction = UIAlertAction(title: "Cancel", style: .cancel)
         alertController.addAction(cancelAction)
 
-        // Set popoverController for iPads
+        // Set popoverController for devices that support them (iPad, iOS 26+)
         if let popoverController = alertController.popoverPresentationController {
-            if let barButtonItem = viewController?.navigationItem.rightBarButtonItem {
-                popoverController.barButtonItem = barButtonItem
+            popoverController.sourceView = viewController?.view
+
+            if let source, let webView = (viewController as? Visitable)?.visitableView.webView {
+                // The source coordinates come from the web page, relative to the
+                // web view's viewport. The web view's scroll view has content
+                // insets for the navigation bar, so account for the top inset.
+                let contentInsetTop = webView.scrollView.adjustedContentInset.top
+                popoverController.sourceRect = CGRect(
+                    x: source.x, y: source.y + Double(contentInsetTop), width: source.width, height: source.height
+                )
             } else {
-                popoverController.sourceView = viewController?.view
                 popoverController.sourceRect = viewController?.view.bounds ?? .zero
                 popoverController.permittedArrowDirections = []
             }
@@ -85,6 +93,16 @@ private extension MenuComponent {
     struct MessageData: Decodable {
         let title: String
         let items: [Item]
+        /// The tapped element's frame (`getBoundingClientRect()`), for the
+        /// popover to point at. Without it the menu shows centered.
+        let source: Source?
+    }
+
+    struct Source: Decodable {
+        let x: Double
+        let y: Double
+        let width: Double
+        let height: Double
     }
 
     struct Item: Decodable {
