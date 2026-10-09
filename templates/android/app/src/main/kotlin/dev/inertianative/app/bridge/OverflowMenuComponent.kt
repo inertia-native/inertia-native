@@ -16,7 +16,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * Bridge component to display a native 3-dot menu in the toolbar, which
- * will will notify the web when it has been tapped.
+ * will notify the web when it has been tapped.
  */
 class OverflowMenuComponent(
     name: String,
