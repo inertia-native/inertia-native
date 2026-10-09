@@ -533,7 +533,7 @@ describe('run', () => {
   })
 
   describe('android', () => {
-    const am = 'adb -s emulator-5554 shell am start -n com.acme.shop/dev.inertianative.app.MainActivity'
+    const am = 'adb -s emulator-5554 shell monkey -p com.acme.shop -c android.intent.category.LAUNCHER 1'
     const connected = 'List of devices attached\nemulator-5554          device product:sdk_gphone64_arm64 model:sdk_gphone64_arm64 transport_id:1\n'
     let env
     beforeEach(async () => {
@@ -546,7 +546,7 @@ describe('run', () => {
       'adb -s emulator-5554 emu avd name': { stdout: 'pixel\r\nOK\r\n' },
       [`adb -s emulator-5554 reverse tcp:${port} tcp:${port}`]: {},
       'adb -s emulator-5554 reverse tcp:5173 tcp:5173': {},
-      [am]: { stdout: 'Starting: Intent { cmp=com.acme.shop/dev.inertianative.app.MainActivity }\n' },
+      [am]: { stdout: 'Events injected: 1\n' },
       ...overrides,
     })
 
@@ -591,6 +591,20 @@ describe('run', () => {
       expect(stdout).toContain(`✓ adb reverse tcp:${port} (localhost on emulator-5554 reaches this machine)\n`)
       expect(stderr).toBe("! Couldn't run adb reverse tcp:5173 tcp:5173\n")
       expect(stdout).toContain('✓ Launched com.acme.shop on emulator-5554')
+    })
+
+    it('fails when the app has no launcher activity', async () => {
+      const { code, stderr } = await cli(['run', 'android'], {
+        os: 'linux',
+        env,
+        captures: captures({
+          'adb devices -l': { stdout: connected },
+          [am]: { stdout: '** No activities found to run, monkey aborted.\n' },
+        }),
+        spawns: { './gradlew installDebug': 0 },
+      })
+      expect(code).toBe(1)
+      expect(stderr).toBe("✗ Couldn't launch com.acme.shop: ** No activities found to run, monkey aborted.\n")
     })
 
     const booting = (overrides) =>

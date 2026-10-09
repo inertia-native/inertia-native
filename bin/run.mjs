@@ -27,8 +27,6 @@ Options:
   --list            List the simulators, or the devices and emulators, and exit
   -h, --help        Show this help`
 
-// Kotlin package of the Android template; fixed by templates/CONTRACT.md.
-const ANDROID_ACTIVITY = 'dev.inertianative.app.MainActivity'
 const exe = (/** @type {string} */ name, /** @type {NodeJS.Platform} */ os) => (os === 'win32' ? `${name}.exe` : name)
 
 class Failure extends Error {}
@@ -292,8 +290,9 @@ async function runAndroid(root, flags, url, prompter, io, out, warn) {
   const appId =
     readFileSync(join(android, 'app', 'build.gradle.kts'), 'utf8').match(/applicationId\s*=\s*"([^"]+)"/)?.[1] ??
     fail("Couldn't find applicationId in android/app/build.gradle.kts.")
-  const started = capture(adb, ['-s', /** @type {string} */ (serial), 'shell', 'am', 'start', '-n', `${appId}/${ANDROID_ACTIVITY}`])
-  if (!started.ok || /Error/.test(started.stdout)) fail(`Couldn't launch ${appId}: ${(started.stdout + started.stderr).trim()}`)
+  // Starts the app's launcher activity, whatever its class is called.
+  const started = capture(adb, ['-s', /** @type {string} */ (serial), 'shell', 'monkey', '-p', appId, '-c', 'android.intent.category.LAUNCHER', '1'])
+  if (!started.ok || /aborted/.test(started.stdout)) fail(`Couldn't launch ${appId}: ${(started.stdout + started.stderr).trim()}`)
   out(`✓ Launched ${appId} on ${serial}`)
 }
 

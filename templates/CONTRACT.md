@@ -47,7 +47,7 @@ npm never publishes files named `.gitignore`, so the templates ship them as
   the base URL lives in `App/AppConfig.swift`.
 - Android: the Kotlin package and Gradle `namespace` stay
   `dev.inertianative.app`; only `applicationId` takes `__BUNDLE_ID__`.
-  `inertia-native run android` launches `dev.inertianative.app.MainActivity`.
+  `inertia-native run android` launches the app's launcher activity.
   The Gradle root project is always `android`, so the app name never has to
   be a valid Gradle project name.
 
