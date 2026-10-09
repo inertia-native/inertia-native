@@ -27,7 +27,7 @@ export function findEntrypoints(root) {
     if (!existsSync(base) || !statSync(base).isDirectory()) continue
     const files = walk(base).sort((a, b) => depth(a) - depth(b) || a.localeCompare(b))
     for (const file of files) {
-      if (basename(file).startsWith('ssr.') || file.split(/[\\/]/).includes('ssr')) continue
+      if (basename(file).startsWith('ssr.') || relative(base, file).split(/[\\/]/).includes('ssr')) continue
       const source = readFileSync(file, 'utf8')
       if (CALL.test(source) && !SSR_IMPORT.test(source)) found.push(relative(root, file))
     }

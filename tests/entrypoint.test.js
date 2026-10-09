@@ -211,6 +211,11 @@ describe('findEntrypoints', () => {
     expect(findEntrypoints(root)).toEqual(['resources/js/app.tsx'])
   })
 
+  it('finds entrypoints of an app that lives in a directory named ssr', () => {
+    file('ssr/resources/js/app.tsx')
+    expect(findEntrypoints(join(root, 'ssr'))).toEqual(['resources/js/app.tsx'])
+  })
+
   it('finds nothing in an empty project', () => {
     expect(findEntrypoints(root)).toEqual([])
   })
