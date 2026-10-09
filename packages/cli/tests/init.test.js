@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { main } from '../bin/cli.mjs'
 import { installSpec } from '../bin/init.mjs'
-import { createPrompter } from '../bin/prompt.mjs'
+import { Cancelled, createPrompter } from '../bin/prompt.mjs'
 import { bundleIdFromName, nameFromDirectory } from '../bin/shell.mjs'
 
 const ROOT = resolve(import.meta.dirname, '..')
@@ -515,60 +515,53 @@ describe('prompts', () => {
     expect(prompter.asked.map((q) => q.label)).toEqual(['Platforms'])
   })
 
-  it('re-asks after an invalid answer (terminal prompter)', async () => {
-    const input = new PassThrough()
-    const output = new PassThrough()
-    let shown = ''
-    output.on('data', (chunk) => (shown += chunk))
-    const prompter = createPrompter(input, output)
-    const answer = prompter.text('Bundle ID', 'com.example.a', (v) => (BUNDLE_RULE.test(v) ? undefined : 'nope'))
-    input.write('Com.Bad\n')
-    await new Promise((r) => setTimeout(r, 10))
-    input.write('com.good.app\n')
-    expect(await answer).toBe('com.good.app')
-    const picked = prompter.select('Platforms', ['both', 'ios', 'android'], 'both')
-    input.write('\n')
-    expect(await picked).toBe('both')
-    const numbered = prompter.select('Entrypoint', ['a/x.ts', 'b/y.ts'], 'a/x.ts')
-    input.write('2\n')
-    expect(await numbered).toBe('b/y.ts')
-    for (const [typed, expected] of [['\n', true], ['Y\n', true], ['no\n', false]]) {
-      const confirmed = prompter.confirm('Change it?')
-      input.write(typed)
-      expect(await confirmed).toBe(expected)
+  it('stops without changes when a question is cancelled', async () => {
+    const dir = project('acme-shop', { 'resources/js/app.tsx': ENTRY })
+    const before = snapshot(dir)
+    const installer = fakeInstaller()
+    const prompter = {
+      ...fakePrompter(),
+      async text() {
+        throw new Cancelled()
+      },
     }
-    const declined = prompter.confirm('Replace?', false)
-    input.write('\n')
-    expect(await declined).toBe(false)
-    const retried = prompter.confirm('Really?')
-    input.write('maybe\n')
-    await new Promise((r) => setTimeout(r, 10))
-    input.write('n\n')
-    expect(await retried).toBe(false)
-    prompter.close()
-    expect(shown).toContain('? Bundle ID (com.example.a) › ')
-    expect(shown).toContain('  nope\n')
-    expect(shown).toContain('? Platforms [both/ios/android] (both) › ')
-    expect(shown).toContain('  2) b/y.ts\n')
-    expect(shown).toContain('? Change it? (Y/n) › ')
-    expect(shown).toContain('? Replace? (y/N) › ')
-    expect(shown).toContain('  Answer y or n\n')
+    const { code, stderr } = await cli(['init', 'ios'], dir, { exec: installer.exec, prompter })
+    expect(code).toBe(130)
+    expect(stderr).toBe('Cancelled. Nothing was changed.\n')
+    expect(installer.calls).toEqual([])
+    expect(snapshot(dir)).toEqual(before)
   })
 
-  it('numbers choices with spaces and asks nothing until a question comes', async () => {
+  it('takes defaults, re-asks and cancels with keys (terminal prompter)', async () => {
     const input = new PassThrough()
     const output = new PassThrough()
     let shown = ''
     output.on('data', (chunk) => (shown += chunk))
     const prompter = createPrompter(input, output)
-    prompter.close()
     expect(input.listenerCount('data')).toBe(0)
-    const picked = prompter.select('Simulator', ['iPhone 17 (iOS 26.5)', 'iPhone 16 (iOS 18.2)'], 'iPhone 17 (iOS 26.5)')
-    input.write('2\n')
-    expect(await picked).toBe('iPhone 16 (iOS 18.2)')
-    prompter.close()
-    prompter.close()
-    expect(shown).toContain('  1) iPhone 17 (iOS 26.5)\n  2) iPhone 16 (iOS 18.2)\n? Simulator [1-2] (iPhone 17 (iOS 26.5)) › ')
+    const press = async (...keys) => {
+      for (const key of keys) {
+        await new Promise((r) => setTimeout(r, 5))
+        input.write(key)
+      }
+    }
+    const answer = prompter.text('Bundle ID', 'com.example.a', (v) => (BUNDLE_RULE.test(v) ? undefined : 'nope'))
+    await press('X', '\r', '\x7f', '\r')
+    expect(await answer).toBe('com.example.a')
+    const picked = prompter.select('Platforms', ['both', 'ios', 'android'], 'both')
+    await press('\x1b[B', '\r')
+    expect(await picked).toBe('ios')
+    for (const [key, expected] of [['\r', true], ['n', false]]) {
+      const confirmed = prompter.confirm('Change it?')
+      await press(key)
+      expect(await confirmed).toBe(expected)
+    }
+    const cancelled = prompter.select('Simulator', ['iPhone 17 (iOS 26.5)', 'iPhone 16 (iOS 18.2)'], 'iPhone 17 (iOS 26.5)')
+    await press('\x03')
+    await expect(cancelled).rejects.toBeInstanceOf(Cancelled)
+    expect(input.listenerCount('keypress')).toBe(0)
+    expect(shown).toContain('nope')
+    expect(shown).toContain('iPhone 16 (iOS 18.2)')
   })
 })
 

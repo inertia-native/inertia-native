@@ -36,7 +36,7 @@
   "homepage": "https://inertia-native.dev",
   "bugs": "https://github.com/inertia-native/inertia-native/issues",
   "engines": {
-    "node": ">=20"
+    "node": ">=20.12"
   },
   "peerDependencies": {
     "inertia-native": "^1.0.0"
@@ -47,6 +47,7 @@
     }
   },
   "dependencies": {
+    "@clack/prompts": "^1.8.1",
     "package-manager-detector": "^1.9.0"
   }
 }

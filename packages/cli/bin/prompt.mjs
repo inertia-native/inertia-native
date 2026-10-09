@@ -1,65 +1,51 @@
-// Minimal line-based prompts on node:readline (no dependencies).
-import { createInterface } from 'node:readline/promises'
+// Terminal prompts on @clack/prompts: arrow keys to pick, Enter takes the
+// default, Ctrl+C or Esc cancels.
+import { confirm, isCancel, select, text } from '@clack/prompts'
 
 /**
  * @typedef {object} Prompter
  * @property {(label: string, fallback: string, check?: (value: string) => string | undefined) => Promise<string>} text
  *   Asks for a value; empty input takes `fallback`; `check` returns an error to re-ask.
  * @property {(label: string, choices: string[], fallback: string) => Promise<string>} select
- *   Asks to pick one of `choices` by number or by name.
+ *   Asks to pick one of `choices`, starting on `fallback`.
  * @property {(label: string, fallback?: boolean) => Promise<boolean>} confirm
- *   Asks a yes/no question; empty input takes `fallback` (yes by default).
+ *   Asks a yes/no question, starting on `fallback` (yes by default).
  * @property {() => void} close
  */
 
+/** Thrown when the user cancels a prompt. */
+export class Cancelled extends Error {
+  constructor() {
+    super('Cancelled.')
+  }
+}
+
 /**
- * The terminal is taken over at the first question only, so a prompter that
- * asks nothing leaves stdin alone.
+ * Each prompt takes the terminal over only while it's shown, so a prompter
+ * that asks nothing leaves stdin alone.
  * @param {NodeJS.ReadableStream} input
  * @param {NodeJS.WritableStream} output
  * @returns {Prompter}
  */
 export function createPrompter(input, output) {
-  /** @type {import('node:readline/promises').Interface | undefined} */
-  let rl
-  const ask = (/** @type {string} */ query) => (rl ??= createInterface({ input, output })).question(query)
-  const write = (/** @type {string} */ s) => output.write(s)
+  const streams = /** @type {import('@clack/prompts').CommonOptions} */ ({ input, output })
+  /** @template T @param {T} value @returns {Exclude<T, symbol>} */
+  const answer = (value) => {
+    if (isCancel(value)) throw new Cancelled()
+    return /** @type {Exclude<T, symbol>} */ (value)
+  }
 
   return {
     async text(label, fallback, check) {
-      for (;;) {
-        const answer = (await ask(`? ${label} (${fallback}) › `)).trim() || fallback
-        const error = check?.(answer)
-        if (!error) return answer
-        write(`  ${error}\n`)
-      }
+      const validate = (/** @type {string | undefined} */ value) => check?.(value || fallback)
+      return answer(await text({ ...streams, message: label, placeholder: fallback, defaultValue: fallback, validate }))
     },
     async select(label, choices, fallback) {
-      // Paths, names with spaces and long lists read better numbered.
-      const numbered = choices.length > 3 || choices.some((choice) => /[\s/]/.test(choice) || choice.length > 20)
-      if (numbered) choices.forEach((choice, i) => write(`  ${i + 1}) ${choice}\n`))
-      const hint = numbered ? `1-${choices.length}` : choices.join('/')
-      for (;;) {
-        const answer = (await ask(`? ${label} [${hint}] (${fallback}) › `)).trim()
-        if (!answer) return fallback
-        const byNumber = choices[Number(answer) - 1]
-        if (/^\d+$/.test(answer) && byNumber) return byNumber
-        if (choices.includes(answer)) return answer
-        write(`  Pick one of: ${numbered ? hint : choices.join(', ')}\n`)
-      }
+      return answer(await select({ ...streams, message: label, options: choices.map((value) => ({ value })), initialValue: fallback }))
     },
     async confirm(label, fallback = true) {
-      for (;;) {
-        const answer = (await ask(`? ${label} (${fallback ? 'Y/n' : 'y/N'}) › `)).trim().toLowerCase()
-        if (answer === '') return fallback
-        if (answer === 'y' || answer === 'yes') return true
-        if (answer === 'n' || answer === 'no') return false
-        write('  Answer y or n\n')
-      }
+      return answer(await confirm({ ...streams, message: label, initialValue: fallback }))
     },
-    close() {
-      rl?.close()
-      rl = undefined
-    },
+    close() {},
   }
 }

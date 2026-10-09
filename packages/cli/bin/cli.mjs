@@ -3,6 +3,7 @@ import { spawn, spawnSync } from 'node:child_process'
 
 import { init, INIT_USAGE } from './init.mjs'
 import { open, OPEN_USAGE } from './open.mjs'
+import { Cancelled } from './prompt.mjs'
 import { run, RUN_USAGE } from './run.mjs'
 
 const USAGE = `Usage: npx inertia-native <command>
@@ -49,9 +50,16 @@ export async function main(argv, overrides = {}) {
     ...overrides,
   }
   const [command, ...rest] = argv
-  if (command === 'init') return init(rest, io)
-  if (command === 'run') return run(rest, io)
-  if (command === 'open') return open(rest, io)
+  const commands = { init, run, open }
+  if (Object.hasOwn(commands, command)) {
+    try {
+      return await commands[/** @type {keyof typeof commands} */ (command)](rest, io)
+    } catch (error) {
+      if (!(error instanceof Cancelled)) throw error
+      io.stderr.write('Cancelled. Nothing was changed.\n')
+      return 130
+    }
+  }
   if (command === undefined || command === 'help' || command === '--help' || command === '-h') {
     const out = command === undefined ? io.stderr : io.stdout
     out.write(`${USAGE}\n\n${INIT_USAGE}\n\n${RUN_USAGE}\n\n${OPEN_USAGE}\n`)
