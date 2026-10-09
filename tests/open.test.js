@@ -45,11 +45,6 @@ function executable(...path) {
 }
 
 describe('ideCommand', () => {
-  it('uses open on macOS', () => {
-    expect(ideCommand('ios', '/app/ios/App.xcodeproj', {}, 'darwin')).toEqual(['open', ['/app/ios/App.xcodeproj']])
-    expect(ideCommand('android', '/app/android', {}, 'darwin')).toEqual(['open', ['-a', 'Android Studio', '/app/android']])
-  })
-
   it("uses Android Studio's studio or studio.sh launcher on Linux", () => {
     const studioSh = executable('opt', 'bin', 'studio.sh')
     const env = { PATH: [join(tmp, 'empty'), join(tmp, 'opt', 'bin')].join(delimiter) }

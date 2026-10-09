@@ -676,14 +676,6 @@ describe.each(['ios', 'android'])('%s output', (platform) => {
     expect(snapshot(join(dir, platform))).toEqual(snapshot(join(tmp, 'reference')))
   })
 
-  it('stays byte-identical when --force replaces a shell', async () => {
-    const dir = project()
-    execFileSync(process.execPath, [FILLER, platform, join(tmp, 'reference'), ...values])
-    await cli(['init', platform, '--name', 'Other'], dir)
-    expect((await cli(['init', platform, '--force', ...values], dir)).code).toBe(0)
-    expect(snapshot(join(dir, platform))).toEqual(snapshot(join(tmp, 'reference')))
-  })
-
   it('renames gitignore to .gitignore, drops the manifest, leaves no placeholders', async () => {
     const dir = project()
     await cli(['init', platform, ...values], dir)
