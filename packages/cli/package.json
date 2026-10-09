@@ -35,6 +35,9 @@
   },
   "homepage": "https://inertia-native.dev",
   "bugs": "https://github.com/inertia-native/inertia-native/issues",
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=20.12"
   },
