@@ -1,3 +1,6 @@
+// Follows joemasilotti/bridge-components. Copyright (c) 2025 Joseph Masilotti,
+// MIT License: https://github.com/joemasilotti/bridge-components/blob/main/LICENSE
+
 import Foundation
 import HotwireNative
 import UIKit
@@ -7,8 +10,6 @@ import UIKit
 /// message only when the confirming action is tapped.
 ///
 /// Register once with `Hotwire.registerBridgeComponents([AlertComponent.self])`.
-///
-/// Follows joemasilotti/bridge-components (MIT).
 final class AlertComponent: BridgeComponent {
     override nonisolated class var name: String { "alert" }
 
